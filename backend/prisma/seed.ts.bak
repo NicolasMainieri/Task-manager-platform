@@ -1,0 +1,213 @@
+import { PrismaClient } from "@prisma/client";
+import bcrypt from "bcryptjs";
+
+const prisma = new PrismaClient();
+
+async function main() {
+  console.log("?? Inizio seeding...");
+
+  const adminRole = await prisma.role.upsert({
+    where: { nome: "Admin" },
+    update: {},
+    create: {
+      nome: "Admin",
+      descrizione: "Amministratore con accesso completo",
+      permessi: {
+        isAdmin: true,
+        canViewAllTasks: true,
+        canCreateTasks: true,
+        canEditTasks: true,
+        canDeleteTasks: true,
+        canAssignTasks: true,
+        canManageUsers: true,
+        canManageRoles: true,
+        canViewReports: true,
+        canExportData: true,
+      } as any,
+      isCustom: false,
+    },
+  });
+
+  const employeeRole = await prisma.role.upsert({
+    where: { nome: "Dipendente" },
+    update: {},
+    create: {
+      nome: "Dipendente",
+      descrizione: "Dipendente standard",
+      permessi: {
+        isAdmin: false,
+        canViewAllTasks: false,
+        canCreateTasks: true,
+        canEditTasks: true,
+        canDeleteTasks: false,
+        canAssignTasks: false,
+        canManageUsers: false,
+        canManageRoles: false,
+        canViewReports: false,
+        canExportData: false,
+      } as any,
+      isCustom: false,
+    },
+  });
+
+  const managerRole = await prisma.role.upsert({
+    where: { nome: "Manager" },
+    update: {},
+    create: {
+      nome: "Manager",
+      descrizione: "Manager di team",
+      permessi: {
+        isAdmin: false,
+        canViewAllTasks: true,
+        canCreateTasks: true,
+        canEditTasks: true,
+        canDeleteTasks: true,
+        canAssignTasks: true,
+        canManageUsers: false,
+        canManageRoles: false,
+        canViewReports: true,
+        canExportData: true,
+      } as any,
+      isCustom: false,
+    },
+  });
+
+  console.log("? Ruoli creati");
+
+  const devTeam = await prisma.team.upsert({
+    where: { nome: "Development" },
+    update: {},
+    create: { nome: "Development", descrizione: "Team di sviluppo software", colore: "#3B82F6" },
+  });
+  const designTeam = await prisma.team.upsert({
+    where: { nome: "Design" },
+    update: {},
+    create: { nome: "Design", descrizione: "Team di design e UX", colore: "#8B5CF6" },
+  });
+  const marketingTeam = await prisma.team.upsert({
+    where: { nome: "Marketing" },
+    update: {},
+    create: { nome: "Marketing", descrizione: "Team marketing e comunicazione", colore: "#EC4899" },
+  });
+
+  console.log("? Team creati");
+
+  const hashedPassword = await bcrypt.hash("admin123", 10);
+  const adminUser = await prisma.user.upsert({
+    where: { email: "admin@taskmanager.com" },
+    update: {},
+    create: {
+      email: "admin@taskmanager.com",
+      password: hashedPassword,
+      nome: "Admin",
+      cognome: "Sistema",
+      roleId: adminRole.id,
+      teamId: devTeam.id,
+    },
+  });
+
+  const users = await Promise.all([
+    prisma.user.upsert({
+      where: { email: "mario.rossi@taskmanager.com" },
+      update: {},
+      create: {
+        email: "mario.rossi@taskmanager.com",
+        password: await bcrypt.hash("password123", 10),
+        nome: "Mario",
+        cognome: "Rossi",
+        roleId: employeeRole.id,
+        teamId: devTeam.id,
+      },
+    }),
+    prisma.user.upsert({
+      where: { email: "laura.bianchi@taskmanager.com" },
+      update: {},
+      create: {
+        email: "laura.bianchi@taskmanager.com",
+        password: await bcrypt.hash("password123", 10),
+        nome: "Laura",
+        cognome: "Bianchi",
+        roleId: managerRole.id,
+        teamId: designTeam.id,
+      },
+    }),
+    prisma.user.upsert({
+      where: { email: "giuseppe.verdi@taskmanager.com" },
+      update: {},
+      create: {
+        email: "giuseppe.verdi@taskmanager.com",
+        password: await bcrypt.hash("password123", 10),
+        nome: "Giuseppe",
+        cognome: "Verdi",
+        roleId: employeeRole.id,
+        teamId: marketingTeam.id,
+      },
+    }),
+  ]);
+
+  console.log("? Utenti creati");
+
+  const progetti = await Promise.all([
+    prisma.progetto.create({ data: { nome: "Nuovo Sito Web", descrizione: "Rifacimento completo del sito aziendale", colore: "#10B981" } }),
+    prisma.progetto.create({ data: { nome: "App Mobile", descrizione: "Sviluppo app mobile iOS e Android", colore: "#F59E0B" } }),
+  ]);
+
+  console.log("? Progetti creati");
+
+  await Promise.all([
+    prisma.task.create({
+      data: {
+        titolo: "Implementare sistema di autenticazione",
+        descrizione: "Creare JWT auth con refresh token",
+        stato: "in_corso",
+        priorita: "high",
+        difficolta: 4,
+        scadenza: new Date(Date.now() + 7*24*60*60*1000),
+        ownerId: users[0].id,
+        teamId: devTeam.id,
+        progettoId: progetti[0].id,
+        tags: ["backend", "security"],
+        checklist: [{ id: "1", text: "Setup JWT", completed: true }, { id: "2", text: "Implement refresh token", completed: false }, { id: "3", text: "Add 2FA support", completed: false }] as any,
+        assignees: { connect: [{ id: users[0].id }] },
+      },
+    }),
+    prisma.task.create({
+      data: {
+        titolo: "Design homepage",
+        descrizione: "Creare mockup per nuova homepage",
+        stato: "completata",
+        priorita: "medium",
+        difficolta: 3,
+        scadenza: new Date(Date.now() - 2*24*60*60*1000),
+        dataFine: new Date(Date.now() - 3*24*60*60*1000),
+        ownerId: users[1].id,
+        teamId: designTeam.id,
+        progettoId: progetti[0].id,
+        tags: ["design", "ui/ux"],
+        qualitaFinale: 5,
+        assignees: { connect: [{ id: users[1].id }] },
+      },
+    }),
+    prisma.task.create({
+      data: {
+        titolo: "Campagna social media",
+        descrizione: "Pianificare campagna per lancio prodotto",
+        stato: "todo",
+        priorita: "critical",
+        difficolta: 2,
+        scadenza: new Date(Date.now() + 3*24*60*60*1000),
+        ownerId: users[2].id,
+        teamId: marketingTeam.id,
+        tags: ["marketing", "social"],
+        assignees: { connect: [{ id: users[2].id }] },
+      },
+    }),
+  ]);
+
+  console.log("? Task create");
+  console.log("\\n?? Seeding completato con successo!\\n");
+  console.log("?? Admin: admin@taskmanager.com");
+  console.log("?? Password: admin123\\n");
+}
+
+main().catch((e) => { console.error(e); process.exit(1); }).finally(async () => { await prisma.$disconnect(); });

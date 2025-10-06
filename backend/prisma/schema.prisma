@@ -1,0 +1,135 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Role {
+  id          String   @id @default(uuid())
+  nome        String   @unique
+  descrizione String?
+  permessi    String   @default("{}")
+  isCustom    Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  users       User[]
+}
+
+model Team {
+  id          String   @id @default(uuid())
+  nome        String   @unique
+  descrizione String?
+  colore      String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  users       User[]
+  tasks       Task[]
+}
+
+model User {
+  id            String        @id @default(uuid())
+  email         String        @unique
+  password      String
+  nome          String
+  cognome       String
+  roleId        String
+  role          Role          @relation(fields: [roleId], references: [id])
+  teamId        String?
+  team          Team?         @relation(fields: [teamId], references: [id])
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  auditLogs     AuditLog[]
+  tasksOwned    Task[]        @relation("TaskOwner")
+  tasksAssigned Task[]        @relation("TaskAssignees")
+  comments      Comment[]
+  worklogs      TaskWorklog[]
+}
+
+model Progetto {
+  id          String   @id @default(uuid())
+  nome        String
+  descrizione String?
+  colore      String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  tasks       Task[]
+}
+
+model Task {
+  id          String        @id @default(uuid())
+  titolo      String
+  descrizione String?
+  stato       String        @default("todo")
+  priorita    String        @default("medium")
+  difficolta  Int           @default(3)
+  scadenza    DateTime?
+  dataInizio  DateTime?
+  dataFine    DateTime?
+  ownerId     String
+  owner       User          @relation("TaskOwner", fields: [ownerId], references: [id])
+  assignees   User[]        @relation("TaskAssignees")
+  teamId      String?
+  team        Team?         @relation(fields: [teamId], references: [id])
+  progettoId  String?
+  progetto    Progetto?     @relation(fields: [progettoId], references: [id])
+  tags        String        @default("[]")
+  checklist   String        @default("[]")
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  comments    Comment[]
+  worklogs    TaskWorklog[]
+}
+
+model Comment {
+  id        String   @id @default(uuid())
+  taskId    String
+  task      Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  autoreId  String
+  autore    User     @relation(fields: [autoreId], references: [id])
+  contenuto String
+  menzioni  String   @default("[]")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model TaskWorklog {
+  id            String   @id @default(uuid())
+  taskId        String
+  task          Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  userId        String
+  user          User     @relation(fields: [userId], references: [id])
+  minuti        Int
+  checklistDone String   @default("[]")
+  note          String?
+  createdAt     DateTime @default(now())
+}
+
+model Notification {
+  id        String   @id @default(uuid())
+  userId    String
+  tipo      String
+  titolo    String
+  messaggio String
+  link      String?
+  letta     Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([userId, letta])
+}
+
+model AuditLog {
+  id        String   @id @default(uuid())
+  entita    String
+  entitaId  String
+  azione    String
+  autoreId  String
+  autore    User     @relation(fields: [autoreId], references: [id])
+  payload   String   @default("{}")
+  createdAt DateTime @default(now())
+
+  @@index([entita, entitaId])
+  @@index([autoreId])
+}
