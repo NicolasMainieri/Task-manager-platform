@@ -7,15 +7,67 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-model Role {
+model Company {
   id          String   @id @default(uuid())
-  nome        String   @unique
-  descrizione String?
-  permessi    String   @default("{}")
-  isCustom    Boolean  @default(false)
+  nome        String
+  code        String   @unique
+  plan        String   // 'free_trial', 'starter', 'professional', 'enterprise'
+  logo        String?  // URL del logo aziendale
+
+  // Gestione abbonamento
+  planStatus       String    @default("active") // 'active', 'expired', 'cancelled'
+  trialEndsAt      DateTime? // Data fine free trial
+  subscriptionEndsAt DateTime? // Data scadenza abbonamento
+  nextRenewalDate  DateTime? // Data prossimo rinnovo
+
+  // Dati di fatturazione
+  partitaIva       String?
+  codiceFiscale    String?
+  indirizzo        String?
+  citta            String?
+  cap              String?
+  paese            String?
+  telefono         String?
+  emailFatturazione String?
+  pec              String?
+  codiceSdi        String?
+
+  adminUserId String?  @unique
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+
+  users       User[]      @relation("CompanyUsers")
+  admin       User?       @relation(name: "CompanyAdmin", fields: [adminUserId], references: [id], onDelete: SetNull)
+  videoRooms  VideoRoom[] @relation("CompanyVideoRooms")
+  roles       Role[]      @relation("CompanyRoles")
+  ticketCategories TicketCategory[] @relation("CompanyTicketCategories")
+  roleChangeRequests RoleChangeRequest[] @relation("CompanyRoleChangeRequests")
+}
+
+model Role {
+  id          String   @id @default(uuid())
+  nome        String
+  descrizione String?
+  permessi    String   @default("{}")
+  colore      String?  @default("#6366f1") // Colore per UI
+  icona       String?  // Nome icona lucide-react
+  isCustom    Boolean  @default(false)
+  isSystem    Boolean  @default(false) // true per ruoli default (admin, dipendente)
+
+  // Collegamento azienda per ruoli custom
+  companyId   String?
+  company     Company? @relation("CompanyRoles", fields: [companyId], references: [id], onDelete: Cascade)
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
   users       User[]
+  ticketCategories TicketCategory[] @relation("RoleTicketCategories")
+  roleChangeRequests RoleChangeRequest[] @relation("TargetRole")
+
+  @@unique([nome, companyId])
+  @@index([companyId])
+  @@index([isCustom])
 }
 
 model Team {
@@ -35,17 +87,59 @@ model User {
   password      String
   nome          String
   cognome       String
+  avatar        String?
+  telefono      String?
+  indirizzo     String?
+  citta         String?
+  cap           String?
+  paese         String?
+
   roleId        String
   role          Role          @relation(fields: [roleId], references: [id])
+
   teamId        String?
   team          Team?         @relation(fields: [teamId], references: [id])
+
+  // dipendente di un'azienda (N:1)
+  companyId     String?
+  company       Company?      @relation("CompanyUsers", fields: [companyId], references: [id])
+
+  // admin di un'azienda (1:1, lato opposto senza campi)
+  adminCompany  Company?      @relation("CompanyAdmin")
+
+  // 'pending' | 'approved' | 'rejected'
+  status        String        @default("approved")
+
   createdAt     DateTime      @default(now())
   updatedAt     DateTime      @updatedAt
-  auditLogs     AuditLog[]
-  tasksOwned    Task[]        @relation("TaskOwner")
-  tasksAssigned Task[]        @relation("TaskAssignees")
-  comments      Comment[]
-  worklogs      TaskWorklog[]
+
+  auditLogs        AuditLog[]
+  tasksOwned       Task[]           @relation("TaskOwner")
+  tasksAssigned    Task[]           @relation("TaskAssignees")
+  comments         Comment[]
+  worklogs         TaskWorklog[]
+  workSessions     WorkSession[]
+  requests         Request[]
+  requestRisposte  RequestRisposta[]
+  scores           Score[]
+  teamScores       TeamScore[]
+  ticketsCreated   Ticket[]         @relation("TicketAuthor")
+  ticketsAssigned  Ticket[]         @relation("TicketAssignee")
+  ticketsTaken     Ticket[]         @relation("TicketTakenBy")
+  ticketRisposte   TicketRisposta[]
+  notifications    Notification[]
+  eventsOrganized  CalendarEvent[]  @relation("EventOrganizer")
+  eventsParticipating CalendarEvent[] @relation("EventParticipants")
+  emails           Email[]
+  calendarConnections CalendarConnection[]
+  emailAccounts    EmailAccount[]
+  videoRoomsCreated VideoRoom[]      @relation("RoomCreator")
+  notes            Note[]           @relation("NoteAuthor")
+  roleChangeRequests RoleChangeRequest[] @relation("UserRoleChangeRequests")
+  roleChangeRequestsReviewed RoleChangeRequest[] @relation("ReviewedRoleChangeRequests")
+
+  @@index([companyId])
+  @@index([status])
 }
 
 model Progetto {
@@ -59,28 +153,64 @@ model Progetto {
 }
 
 model Task {
-  id          String        @id @default(uuid())
-  titolo      String
-  descrizione String?
-  stato       String        @default("todo")
-  priorita    String        @default("medium")
-  difficolta  Int           @default(3)
-  scadenza    DateTime?
-  dataInizio  DateTime?
-  dataFine    DateTime?
+  id            String        @id @default(uuid())
+  titolo        String
+  descrizione   String?
+  stato         String        @default("todo")
+  priorita      String        @default("medium")
+  difficolta    Int           @default(3)
+  qualitaFinale Int?
+  scadenza      DateTime?
+  dataInizio    DateTime?
+  dataFine      DateTime?
+
   ownerId     String
   owner       User          @relation("TaskOwner", fields: [ownerId], references: [id])
+
   assignees   User[]        @relation("TaskAssignees")
+
   teamId      String?
   team        Team?         @relation(fields: [teamId], references: [id])
+
   progettoId  String?
   progetto    Progetto?     @relation(fields: [progettoId], references: [id])
+
   tags        String        @default("[]")
   checklist   String        @default("[]")
   createdAt   DateTime      @default(now())
   updatedAt   DateTime      @updatedAt
+
   comments    Comment[]
   worklogs    TaskWorklog[]
+  requests    Request[]
+  scores      Score[]
+  tickets     Ticket[]
+  subtasks    Subtask[]
+  calendarEvents CalendarEvent[]
+  emails      Email[]
+
+  @@index([ownerId])
+  @@index([teamId])
+  @@index([progettoId])
+}
+
+model Subtask {
+  id          String   @id @default(uuid())
+  titolo      String
+  descrizione String?
+  completata  Boolean  @default(false)
+  ordine      Int      @default(0)
+
+  taskId      String
+  task        Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  workSessions WorkSession[]
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([taskId])
+  @@index([completata])
 }
 
 model Comment {
@@ -93,6 +223,9 @@ model Comment {
   menzioni  String   @default("[]")
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  @@index([taskId])
+  @@index([autoreId])
 }
 
 model TaskWorklog {
@@ -105,11 +238,112 @@ model TaskWorklog {
   checklistDone String   @default("[]")
   note          String?
   createdAt     DateTime @default(now())
+
+  @@index([taskId])
+  @@index([userId])
+}
+
+// Sessioni di lavoro per tracking in tempo reale
+model WorkSession {
+  id          String   @id @default(uuid())
+
+  // Riferimento alla subtask
+  subtaskId   String
+  subtask     Subtask  @relation(fields: [subtaskId], references: [id], onDelete: Cascade)
+
+  // Riferimento all'utente
+  userId      String
+  user        User     @relation(fields: [userId], references: [id])
+
+  // Stato della sessione
+  stato       String   @default("active") // 'active', 'paused', 'completed'
+
+  // Timing
+  startedAt   DateTime @default(now())
+  pausedAt    DateTime? // Quando è stata messa in pausa
+  completedAt DateTime? // Quando è stata completata
+
+  // Tempo accumulato in secondi (escludendo le pause)
+  tempoAccumulato Int   @default(0)
+
+  // Ultimo timestamp di calcolo (per riprendere dal punto giusto)
+  lastUpdateAt DateTime @default(now())
+
+  // Pause tracking
+  totalePause  Int      @default(0) // Totale secondi in pausa
+  pauseCount   Int      @default(0) // Numero di pause effettuate
+
+  // Notifica pausa 1h
+  ultimaNotificaPausa DateTime? // Ultima notifica di pausa inviata
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([subtaskId])
+  @@index([userId])
+  @@index([stato])
+}
+
+model Request {
+  id          String   @id @default(uuid())
+  tipo        String
+  urgenza     String   @default("media")
+  descrizione String
+  stato       String   @default("aperta") // 'aperta', 'in_lavorazione', 'approvata', 'rifiutata'
+  chiuso      Boolean  @default(false) // Se true, il ticket è chiuso e non può ricevere risposte
+  autoreId    String
+  autore      User     @relation(fields: [autoreId], references: [id])
+  taskId      String?
+  task        Task?    @relation(fields: [taskId], references: [id])
+  risposte    RequestRisposta[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([autoreId])
+  @@index([stato])
+  @@index([chiuso])
+}
+
+model RequestRisposta {
+  id          String   @id @default(uuid())
+  requestId   String
+  request     Request  @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  autoreId    String
+  autore      User     @relation(fields: [autoreId], references: [id])
+  contenuto   String
+  isAdmin     Boolean  @default(false)
+  createdAt   DateTime @default(now())
+
+  @@index([requestId])
+  @@index([autoreId])
+}
+
+model Score {
+  id              String   @id @default(uuid())
+  userId          String
+  user            User     @relation(fields: [userId], references: [id])
+  taskId          String
+  task            Task     @relation(fields: [taskId], references: [id])
+  puntiBase       Int
+  punti           Int
+  moltiplicatore  Float    @default(1.0)
+  bonusPuntualita Float    @default(0.0)
+  malusPuntualita Float    @default(0.0)
+  puntiTotali     Int
+  periodo         String?
+  breakdown       String   @default("{}")
+  createdAt       DateTime @default(now())
+
+  @@index([userId])
+  @@index([taskId])
+  @@index([createdAt])
+  @@index([periodo])
 }
 
 model Notification {
   id        String   @id @default(uuid())
   userId    String
+  user      User     @relation(fields: [userId], references: [id])
   tipo      String
   titolo    String
   messaggio String
@@ -118,6 +352,152 @@ model Notification {
   createdAt DateTime @default(now())
 
   @@index([userId, letta])
+}
+
+model Ticket {
+  id          String   @id @default(uuid())
+  titolo      String
+  descrizione String
+  stato       String   @default("aperto") // 'aperto', 'in_lavorazione', 'risolto', 'chiuso'
+  priorita    String   @default("media") // 'bassa', 'media', 'alta', 'urgente'
+
+  // Categoria del ticket (routing automatico per ruolo)
+  categoryId  String?
+  category    TicketCategory? @relation(fields: [categoryId], references: [id])
+
+  // Routing del ticket
+  targetRoleId String?  // Ruolo target (da categoria o manuale)
+
+  // Utente che ha aperto il ticket
+  autoreId    String
+  autore      User     @relation("TicketAuthor", fields: [autoreId], references: [id])
+
+  // Task collegato (opzionale)
+  taskId      String?
+  task        Task?    @relation(fields: [taskId], references: [id])
+
+  // Utente assegnato (può essere manual o chi "prende in carico")
+  assignedToId String?
+  assignedTo   User?   @relation("TicketAssignee", fields: [assignedToId], references: [id])
+
+  // Preso in carico da (quando qualcuno del ruolo target prende il ticket)
+  takenByUserId String?
+  takenBy      User?    @relation("TicketTakenBy", fields: [takenByUserId], references: [id])
+  takenAt      DateTime?
+
+  // Azienda (isolamento)
+  companyId    String?
+
+  // Risposte al ticket
+  risposte    TicketRisposta[]
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([autoreId])
+  @@index([taskId])
+  @@index([stato])
+  @@index([assignedToId])
+  @@index([categoryId])
+  @@index([targetRoleId])
+  @@index([takenByUserId])
+  @@index([companyId])
+}
+
+model TicketRisposta {
+  id        String   @id @default(uuid())
+  ticketId  String
+  ticket    Ticket   @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  autoreId  String
+  autore    User     @relation(fields: [autoreId], references: [id])
+  contenuto String
+  isAdmin   Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([ticketId])
+  @@index([autoreId])
+}
+
+// Categorie ticket per routing automatico
+model TicketCategory {
+  id          String   @id @default(uuid())
+  nome        String   // es: "Problema Coding", "Richiesta HR"
+  descrizione String?
+  icona       String?  // Nome icona lucide-react
+  colore      String?  @default("#6366f1")
+
+  // Ruolo target per routing automatico
+  targetRoleId String
+  targetRole   Role    @relation("RoleTicketCategories", fields: [targetRoleId], references: [id])
+
+  // Azienda
+  companyId   String
+  company     Company @relation("CompanyTicketCategories", fields: [companyId], references: [id], onDelete: Cascade)
+
+  // Tickets con questa categoria
+  tickets     Ticket[]
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([nome, companyId])
+  @@index([companyId])
+  @@index([targetRoleId])
+}
+
+// Richieste di cambio ruolo
+model RoleChangeRequest {
+  id          String   @id @default(uuid())
+
+  // Utente richiedente
+  userId      String
+  user        User     @relation("UserRoleChangeRequests", fields: [userId], references: [id], onDelete: Cascade)
+
+  // Ruolo attuale (snapshot)
+  currentRoleName String
+
+  // Ruolo richiesto
+  requestedRoleId String
+  requestedRole   Role   @relation("TargetRole", fields: [requestedRoleId], references: [id])
+
+  // Motivazione
+  motivazione String
+
+  // Stato richiesta
+  stato       String   @default("pending") // 'pending', 'approved', 'rejected'
+
+  // Review
+  reviewedBy  String?
+  reviewer    User?    @relation("ReviewedRoleChangeRequests", fields: [reviewedBy], references: [id])
+  reviewedAt  DateTime?
+  reviewNote  String?  // Nota dell'admin
+
+  // Azienda
+  companyId   String
+  company     Company  @relation("CompanyRoleChangeRequests", fields: [companyId], references: [id], onDelete: Cascade)
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([userId])
+  @@index([requestedRoleId])
+  @@index([stato])
+  @@index([companyId])
+  @@index([reviewedBy])
+}
+
+model TeamScore {
+  id        String   @id @default(uuid())
+  teamId    String
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  punti     Int
+  periodo   String?
+  createdAt DateTime @default(now())
+
+  @@index([teamId])
+  @@index([userId])
+  @@index([periodo])
 }
 
 model AuditLog {
@@ -132,4 +512,316 @@ model AuditLog {
 
   @@index([entita, entitaId])
   @@index([autoreId])
+}
+
+// Sistema di note libere (tipo Notion/Whiteboard)
+model Note {
+  id          String   @id @default(uuid())
+  titolo      String
+  tipo        String   @default("text") // 'text', 'spreadsheet', 'whiteboard'
+  contenuto   String   @default("") // Contenuto in formato HTML/Markdown/JSON
+  categoria   String?  // Categoria personalizzata
+  colore      String?  @default("#3B82F6") // Colore per organizzazione visiva
+  tags        String   @default("[]") // Array JSON di tags
+
+  // Proprietario della nota
+  autoreId    String
+  autore      User     @relation("NoteAuthor", fields: [autoreId], references: [id])
+
+  // Condivisione
+  isPublic    Boolean  @default(false) // Se true, visibile a tutti nella company
+  sharedWith  String   @default("[]") // Array JSON di user IDs con cui è condivisa
+  teamShared  String   @default("[]") // Array JSON di team IDs con cui è condivisa
+
+  // Organizzazione
+  isPinned    Boolean  @default(false) // Note fissate in alto
+  isFavorite  Boolean  @default(false) // Note preferite
+  isArchived  Boolean  @default(false) // Note archiviate
+
+  // Collegamenti
+  taskId      String?  // Task collegato (opzionale)
+  progettoId  String?  // Progetto collegato (opzionale)
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([autoreId])
+  @@index([tipo])
+  @@index([categoria])
+  @@index([isPinned])
+  @@index([isArchived])
+  @@index([taskId])
+  @@index([progettoId])
+}
+
+model CalendarEvent {
+  id          String   @id @default(uuid())
+  titolo      String
+  descrizione String?
+  tipo        String   @default("meeting") // 'meeting', 'task', 'reminder', 'holiday'
+  dataInizio  DateTime
+  dataFine    DateTime
+  luogo       String?
+  linkMeeting String?  // Google Meet, Zoom, etc.
+  allDay      Boolean  @default(false)
+  colore      String?  @default("#3B82F6")
+
+  // Organizzatore
+  organizerId String
+  organizer   User     @relation("EventOrganizer", fields: [organizerId], references: [id])
+
+  // Partecipanti
+  partecipanti User[]  @relation("EventParticipants")
+
+  // Task collegato (opzionale)
+  taskId      String?
+  task        Task?    @relation(fields: [taskId], references: [id])
+
+  // Notifiche
+  reminderMinutes Int?  @default(15) // Minuti prima dell'evento
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([organizerId])
+  @@index([dataInizio])
+  @@index([taskId])
+}
+
+model Email {
+  id          String   @id @default(uuid())
+  oggetto     String
+  corpo       String
+  mittente    String
+  destinatari String   @default("[]") // Array JSON di email
+  cc          String?  @default("[]")
+  bcc         String?  @default("[]")
+
+  // Stato email
+  stato       String   @default("inviata") // 'bozza', 'inviata', 'ricevuta', 'letta', 'archiviata'
+  importante  Boolean  @default(false)
+  hasAttachment Boolean @default(false)
+
+  // Utente proprietario (ricevente o mittente)
+  userId      String
+  user        User     @relation(fields: [userId], references: [id])
+
+  // Task o progetto collegato (opzionale)
+  taskId      String?
+  task        Task?    @relation(fields: [taskId], references: [id])
+
+  // Thread email
+  threadId    String?  // Per raggruppare email correlate
+  inReplyTo   String?  // ID email a cui si risponde
+
+  dataInvio   DateTime @default(now())
+  dataLettura DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([userId])
+  @@index([stato])
+  @@index([taskId])
+  @@index([threadId])
+  @@index([dataInvio])
+}
+
+// Connessioni Calendar esterne (Google Calendar, Outlook Calendar)
+model CalendarConnection {
+  id          String   @id @default(uuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  provider    String   // 'google', 'outlook', 'apple'
+  accountEmail String  // Email dell'account collegato
+  accountName String?  // Nome visualizzato
+
+  // OAuth2 tokens
+  accessToken  String
+  refreshToken String?
+  tokenExpiry  DateTime?
+
+  // Sync settings
+  syncEnabled  Boolean  @default(true)
+  lastSync     DateTime?
+  calendarId   String?  // ID del calendario remoto
+
+  // Metadata
+  metadata     String   @default("{}")  // JSON per dati specifici del provider
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([userId])
+  @@index([provider])
+  @@unique([userId, provider, accountEmail])
+}
+
+// Account Email esterni (Gmail, Outlook, IMAP, POP3)
+model EmailAccount {
+  id          String   @id @default(uuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  provider    String   // 'gmail', 'outlook', 'imap', 'pop3'
+  accountEmail String  // Indirizzo email dell'account
+  accountName String?  // Nome visualizzato
+
+  // OAuth2 tokens (per Gmail e Outlook)
+  accessToken  String?
+  refreshToken String?
+  tokenExpiry  DateTime?
+
+  // IMAP/POP3 settings
+  imapHost     String?
+  imapPort     Int?
+  imapSecure   Boolean  @default(true)
+  pop3Host     String?
+  pop3Port     Int?
+  pop3Secure   Boolean  @default(true)
+  smtpHost     String?
+  smtpPort     Int?
+  smtpSecure   Boolean  @default(true)
+  emailPassword String? // Encrypted password per IMAP/POP3
+
+  // Sync settings
+  syncEnabled  Boolean  @default(true)
+  lastSync     DateTime?
+  syncFrequency Int     @default(5) // minuti
+
+  // Metadata
+  metadata     String   @default("{}")  // JSON per dati specifici
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([userId])
+  @@index([provider])
+  @@unique([userId, accountEmail])
+}
+
+// Stanze per videochiamate (simile a canali Discord)
+model VideoRoom {
+  id          String   @id @default(uuid())
+  nome        String
+  descrizione String?
+  tipo        String   @default("meeting") // 'meeting', 'team', 'public', 'private', 'scheduled'
+
+  // Creatore della room
+  creatoreId  String
+  creatore    User     @relation("RoomCreator", fields: [creatoreId], references: [id])
+
+  // Company associata (ISOLAMENTO DATI)
+  companyId   String?
+  company     Company? @relation("CompanyVideoRooms", fields: [companyId], references: [id])
+
+  // Team associato (opzionale)
+  teamId      String?
+
+  // Impostazioni
+  maxPartecipanti Int     @default(50)
+  requiresAuth    Boolean @default(true)
+  password        String? // Password opzionale per room private
+
+  // Stato
+  isActive    Boolean  @default(true)
+
+  // Pianificazione
+  scheduledAt DateTime? // Data/ora programmata
+
+  // Integrazioni esterne
+  meetingProvider String?  // 'native', 'zoom', 'google_meet'
+  zoomMeetingId   String?  // ID meeting Zoom
+  zoomJoinUrl     String?  // URL di join Zoom
+  googleMeetUrl   String?  // URL Google Meet
+
+  // Partecipanti invitati (per meeting programmati)
+  invitedUserIds  String   @default("[]") // Array JSON di user IDs
+
+  // Partecipanti e chiamate
+  partecipanti VideoRoomParticipant[]
+  chiamate     VideoCall[]
+  messaggi     VideoRoomMessage[]
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([creatoreId])
+  @@index([companyId])
+  @@index([teamId])
+  @@index([tipo])
+  @@index([isActive])
+  @@index([scheduledAt])
+}
+
+// Partecipanti nelle stanze
+model VideoRoomParticipant {
+  id          String   @id @default(uuid())
+
+  roomId      String
+  room        VideoRoom @relation(fields: [roomId], references: [id], onDelete: Cascade)
+
+  userId      String
+
+  // Stato del partecipante
+  isConnected Boolean  @default(false)
+  isMuted     Boolean  @default(false)
+  isVideoOff  Boolean  @default(false)
+
+  joinedAt    DateTime @default(now())
+  leftAt      DateTime?
+
+  @@index([roomId])
+  @@index([userId])
+  @@unique([roomId, userId])
+}
+
+// Sessioni di videochiamata
+model VideoCall {
+  id          String   @id @default(uuid())
+
+  roomId      String
+  room        VideoRoom @relation(fields: [roomId], references: [id], onDelete: Cascade)
+
+  // Informazioni chiamata
+  titolo      String
+  descrizione String?
+
+  // Orario
+  scheduledAt DateTime? // Se programmata in anticipo
+  startedAt   DateTime?
+  endedAt     DateTime?
+
+  // Stato
+  stato       String   @default("scheduled") // 'scheduled', 'active', 'ended'
+
+  // Recording (futuro)
+  isRecording Boolean  @default(false)
+  recordingUrl String?
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([roomId])
+  @@index([stato])
+  @@index([scheduledAt])
+}
+
+// Messaggi chat nella room
+model VideoRoomMessage {
+  id          String   @id @default(uuid())
+
+  roomId      String
+  room        VideoRoom @relation(fields: [roomId], references: [id], onDelete: Cascade)
+
+  userId      String
+
+  messaggio   String
+  tipo        String   @default("text") // 'text', 'system', 'emoji'
+
+  createdAt   DateTime @default(now())
+
+  @@index([roomId])
+  @@index([userId])
+  @@index([createdAt])
 }

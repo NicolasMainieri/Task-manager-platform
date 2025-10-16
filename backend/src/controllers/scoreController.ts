@@ -2,10 +2,16 @@ import { Response } from "express";
 import prisma from "../config/database";
 import { AuthRequest } from "../middleware/auth";
 import { Task } from "@prisma/client";
+import scoreService from "../services/score.service";
 
 type Period = 'week' | 'month' | 'quarter';
 
 class ScoreController {
+  constructor() {
+    this.getLeaderboard = this.getLeaderboard.bind(this);
+    this.getUserScore = this.getUserScore.bind(this);
+  }
+
   async getLeaderboard(req: AuthRequest, res: Response) {
     try {
       const periodParam = (req.query.period as string | undefined) ?? 'month';
@@ -24,13 +30,30 @@ class ScoreController {
         startDate.setMonth(now.getMonth() - 3);
       }
 
-      // Utenti con team e tasksAssigned filtrate a completate nel periodo
+      // Ottieni score dal database (usano il sistema ottimizzato)
+      const scores = await prisma.score.groupBy({
+        by: ["userId"],
+        where: {
+          createdAt: { gte: startDate }
+        },
+        _sum: {
+          puntiTotali: true
+        },
+        _count: {
+          taskId: true
+        }
+      });
+
+      // Ottieni info utenti
       const users = await prisma.user.findMany({
+        where: {
+          id: { in: scores.map(s => s.userId) }
+        },
         include: {
           team: { select: { nome: true } },
           tasksAssigned: {
             where: {
-              stato: 'completato',
+              stato: { in: ['completato', 'completata'] },
               updatedAt: { gte: startDate }
             }
           }
@@ -38,10 +61,14 @@ class ScoreController {
       });
 
       // Leaderboard personale
-      const personal = users
-        .map((user) => {
-          const completedTasks: Task[] = user.tasksAssigned.filter((t: Task) => t.stato === 'completato');
-          const totalPoints = completedTasks.length * 10; // 10 punti per task
+      const personal = scores
+        .map((scoreData) => {
+          const user = users.find(u => u.id === scoreData.userId);
+          if (!user) return null;
+
+          const completedTasks = user.tasksAssigned.filter((t: Task) =>
+            ['completato', 'completata'].includes(t.stato)
+          );
           const punctuality = this.calculatePunctuality(completedTasks);
 
           return {
@@ -49,51 +76,63 @@ class ScoreController {
             nome: user.nome,
             cognome: user.cognome,
             teamName: user.team?.nome ?? 'Nessun team',
-            totalPoints,
-            completedTasks: completedTasks.length,
+            totalPoints: scoreData._sum.puntiTotali || 0,
+            completedTasks: scoreData._count.taskId,
             punctuality
           };
         })
+        .filter(x => x !== null)
         .sort((a, b) => b.totalPoints - a.totalPoints);
 
-      // Team con utenti e relative tasksAssigned filtrate
+      // Team leaderboard
       const teams = await prisma.team.findMany({
         include: {
           users: {
-            include: {
-              tasksAssigned: {
-                where: {
-                  stato: 'completato',
-                  updatedAt: { gte: startDate }
-                }
-              }
-            }
+            select: { id: true }
           }
         }
       });
 
-      const teamLeaderboard = teams
-        .map((team) => {
-          const allCompletedTasks: Task[] = team.users.flatMap((u) =>
-            u.tasksAssigned.filter((t: Task) => t.stato === 'completato')
-          );
+      const teamLeaderboard = await Promise.all(
+        teams.map(async (team) => {
+          const teamUserIds = team.users.map(u => u.id);
 
-          const totalPoints = allCompletedTasks.length * 10;
-          const completedTasks = allCompletedTasks.length;
-          const punctuality = this.calculatePunctuality(allCompletedTasks);
+          const teamScores = await prisma.score.aggregate({
+            where: {
+              userId: { in: teamUserIds },
+              createdAt: { gte: startDate }
+            },
+            _sum: {
+              puntiTotali: true
+            },
+            _count: {
+              taskId: true
+            }
+          });
+
+          const teamTasks = await prisma.task.findMany({
+            where: {
+              ownerId: { in: teamUserIds },
+              stato: { in: ['completato', 'completata'] },
+              updatedAt: { gte: startDate }
+            }
+          });
 
           return {
             teamId: team.id,
             teamName: team.nome,
-            totalPoints,
-            completedTasks,
+            totalPoints: teamScores._sum.puntiTotali || 0,
+            completedTasks: teamScores._count.taskId || 0,
             memberCount: team.users.length,
-            punctuality
+            punctuality: this.calculatePunctuality(teamTasks)
           };
         })
+      );
+
+      const sortedTeamLeaderboard = teamLeaderboard
         .sort((a, b) => b.totalPoints - a.totalPoints);
 
-      res.json({ personal, team: teamLeaderboard });
+      res.json({ personal, team: sortedTeamLeaderboard });
     } catch (error: any) {
       res.status(500).json({ error: error.message });
     }
@@ -121,12 +160,6 @@ class ScoreController {
       const user = await prisma.user.findUnique({
         where: { id: userId },
         include: {
-          tasksAssigned: {
-            where: {
-              stato: 'completato',
-              updatedAt: { gte: startDate }
-            }
-          },
           team: { select: { nome: true } }
         }
       });
@@ -135,26 +168,49 @@ class ScoreController {
         return res.status(404).json({ error: "Utente non trovato" });
       }
 
-      const completedTasks: Task[] = user.tasksAssigned.filter((t: Task) => t.stato === 'completato');
-      const totalPoints = completedTasks.length * 10;
-      const punctuality = this.calculatePunctuality(completedTasks);
-
-      // Posizione in classifica (ricalcolo punteggi di tutti gli utenti)
-      const allUsers = await prisma.user.findMany({
-        include: {
-          tasksAssigned: {
-            where: {
-              stato: 'completato',
-              updatedAt: { gte: startDate }
-            }
-          }
+      // Ottieni score dal database
+      const userScores = await prisma.score.aggregate({
+        where: {
+          userId: userId,
+          createdAt: { gte: startDate }
+        },
+        _sum: {
+          puntiTotali: true
+        },
+        _count: {
+          taskId: true
         }
       });
 
-      const rankedUsers = allUsers
-        .map((u) => ({
-          id: u.id,
-          points: u.tasksAssigned.filter((t: Task) => t.stato === 'completato').length * 10
+      const totalPoints = userScores._sum.puntiTotali || 0;
+      const completedTasksCount = userScores._count.taskId || 0;
+
+      // Calcola puntualità dalle task completate
+      const completedTasks = await prisma.task.findMany({
+        where: {
+          ownerId: userId,
+          stato: { in: ['completato', 'completata'] },
+          updatedAt: { gte: startDate }
+        }
+      });
+
+      const punctuality = this.calculatePunctuality(completedTasks);
+
+      // Posizione in classifica
+      const allScores = await prisma.score.groupBy({
+        by: ["userId"],
+        where: {
+          createdAt: { gte: startDate }
+        },
+        _sum: {
+          puntiTotali: true
+        }
+      });
+
+      const rankedUsers = allScores
+        .map((s) => ({
+          id: s.userId,
+          points: s._sum.puntiTotali || 0
         }))
         .sort((a, b) => b.points - a.points);
 
@@ -162,10 +218,10 @@ class ScoreController {
 
       res.json({
         totalPoints,
-        completedTasks: completedTasks.length,
+        completedTasks: completedTasksCount,
         punctuality,
         rank,
-        recentAchievements: this.getAchievements(completedTasks.length, punctuality),
+        recentAchievements: this.getAchievements(completedTasksCount, punctuality),
         teamName: user.team?.nome ?? 'Nessun team'
       });
     } catch (error: any) {

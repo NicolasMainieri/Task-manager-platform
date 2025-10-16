@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Autenticazione completata</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+        }
+        .container {
+            text-align: center;
+            color: white;
+        }
+        .spinner {
+            width: 50px;
+            height: 50px;
+            border: 4px solid rgba(255, 255, 255, 0.3);
+            border-top-color: white;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        h1 {
+            font-size: 24px;
+            margin: 0 0 10px;
+        }
+        p {
+            font-size: 14px;
+            opacity: 0.9;
+        }
+        .success {
+            font-size: 60px;
+            margin-bottom: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="success">✓</div>
+        <h1>Autenticazione completata!</h1>
+        <p>Questa finestra si chiuderà automaticamente...</p>
+    </div>
+
+    <script>
+        // Ottieni i parametri dall'URL
+        const urlParams = new URLSearchParams(window.location.search);
+        const success = urlParams.get('success');
+        const provider = urlParams.get('provider');
+        const type = urlParams.get('type');
+
+        if (window.opener) {
+            // Comunica con la finestra principale
+            window.opener.postMessage({
+                type: 'oauth-callback',
+                success: success === 'true',
+                provider: provider,
+                integrationType: type
+            }, window.location.origin);
+
+            // Chiudi il popup dopo 1 secondo
+            setTimeout(() => {
+                window.close();
+            }, 1000);
+        } else {
+            // Se non c'è opener, redirect alla dashboard
+            setTimeout(() => {
+                window.location.href = '/dashboard';
+            }, 2000);
+        }
+    </script>
+</body>
+</html>

@@ -1,10 +1,9 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
-import Landing from './pages/Landing.jsx';
-import Login from './pages/Login.jsx';
-import Dashboard from './pages/Dashboard.jsx';
-
+import Landing from './pages/Landing.tsx';  // ✅ Senza .jsx
+import Login from './pages/Login.tsx';      // ✅ Senza .jsx
+import DashboardRouter from './pages/DashboardRouter';  // ✅ Senza .tsx
 // Componente per proteggere le rotte
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { isAuthenticated, loading } = useAuth();
@@ -57,27 +56,27 @@ function App() {
         <Routes>
           {/* Landing Page - Pubblica, accessibile a tutti */}
           <Route path="/" element={<Landing />} />
-          
+
           {/* Login - Reindirizza a dashboard se già autenticato */}
-          <Route 
-            path="/login" 
+          <Route
+            path="/login"
             element={
               <LoginRoute>
                 <Login />
               </LoginRoute>
-            } 
+            }
           />
-          
-          {/* Dashboard - Protetta, richiede autenticazione */}
-          <Route 
-            path="/dashboard" 
+
+          {/* Dashboard - Protetta, usa il router intelligente */}
+          <Route
+            path="/dashboard"
             element={
               <ProtectedRoute>
-                <Dashboard />
+                <DashboardRouter />
               </ProtectedRoute>
-            } 
+            }
           />
-          
+
           {/* Catch-all: reindirizza alla landing */}
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

@@ -4,6 +4,165 @@
 
 @layer base {
   body {
-    @apply bg-gray-50 text-gray-900;
+    @apply bg-white text-gray-900 dark:bg-slate-900 dark:text-white transition-colors;
+  }
+
+  /* Override hardcoded dark backgrounds in light mode */
+  :root:not(.dark) .bg-gradient-to-br {
+    background: linear-gradient(to bottom right, #ffffff, #f0f4ff, #ffffff) !important;
+  }
+
+  :root:not(.dark) .bg-slate-900,
+  :root:not(.dark) .from-slate-900,
+  :root:not(.dark) .via-indigo-900,
+  :root:not(.dark) .to-slate-900 {
+    background-color: #ffffff !important;
+  }
+
+  /* Sidebar - grigio chiarissimo tendente al bianco - MASSIMA PRIORITÀ */
+  :root:not(.dark) .bg-slate-800,
+  :root:not(.dark) [class*="bg-slate-800"] {
+    background-color: #f9fafb !important; /* Grigio chiarissimo per sidebar */
+  }
+
+  :root:not(.dark) .bg-slate-700,
+  :root:not(.dark) [class*="bg-slate-700"] {
+    background-color: #f3f4f6 !important; /* Grigio molto chiaro */
+  }
+
+  :root:not(.dark) .bg-slate-800\/50,
+  :root:not(.dark) .bg-slate-700\/50 {
+    background-color: #fafbfc !important; /* Quasi bianco */
+  }
+
+  /* Forza lo sfondo chiaro su elementi specifici della sidebar */
+  :root:not(.dark) aside,
+  :root:not(.dark) nav,
+  :root:not(.dark) .sidebar {
+    background-color: #f9fafb !important;
+  }
+
+  /* Colori specifici hardcoded da sovrascrivere */
+  :root:not(.dark) [style*="background-color: rgb(30, 41, 59)"],
+  :root:not(.dark) [style*="background-color: rgb(51, 65, 85)"],
+  :root:not(.dark) [style*="background-color: rgb(45, 55, 72)"],
+  :root:not(.dark) [style*="background-color: #1e293b"],
+  :root:not(.dark) [style*="background-color: #334155"],
+  :root:not(.dark) [style*="background-color: #2d3748"] {
+    background-color: #f9fafb !important;
+  }
+
+  /* Classi bg-gray per sidebar scura */
+  :root:not(.dark) .bg-gray-800,
+  :root:not(.dark) .bg-gray-900 {
+    background-color: #f9fafb !important;
+  }
+
+  /* Testi - tutti neri o molto scuri nel tema chiaro */
+  :root:not(.dark) .text-white,
+  :root:not(.dark) [class*="text-white"] {
+    color: #000000 !important;
+  }
+
+  :root:not(.dark) .text-gray-100,
+  :root:not(.dark) .text-gray-200 {
+    color: #1f2937 !important;
+  }
+
+  :root:not(.dark) .text-gray-400 {
+    color: #1e293b !important;
+  }
+
+  :root:not(.dark) .text-gray-300 {
+    color: #334155 !important;
+  }
+
+  :root:not(.dark) .text-slate-400 {
+    color: #1e293b !important;
+  }
+
+  :root:not(.dark) .text-slate-300 {
+    color: #334155 !important;
+  }
+
+  /* Bordi - grigio molto chiaro nel tema chiaro */
+  :root:not(.dark) .border-slate-600 {
+    border-color: #e5e7eb !important; /* Grigio chiarissimo */
+  }
+
+  :root:not(.dark) .border-slate-700 {
+    border-color: #e5e7eb !important; /* Grigio chiarissimo */
+  }
+
+  :root:not(.dark) .border-slate-800 {
+    border-color: #e5e7eb !important; /* Grigio chiarissimo */
+  }
+
+  :root:not(.dark) .border-indigo-500\/20 {
+    border-color: rgba(99, 102, 241, 0.15) !important; /* Bordo indigo più leggero */
+  }
+
+  :root:not(.dark) .border-r {
+    border-color: #e5e7eb !important; /* Bordo verticale sidebar */
+  }
+
+  /* Hover states */
+  :root:not(.dark) .hover\:text-white:hover {
+    color: #000000 !important;
+  }
+
+  :root:not(.dark) .hover\:bg-slate-700\/50:hover {
+    background-color: #f0f1f3 !important; /* Hover leggermente più scuro */
+  }
+
+  :root:not(.dark) .hover\:bg-slate-800:hover {
+    background-color: #f0f1f3 !important;
+  }
+
+  /* Divisori e separatori */
+  :root:not(.dark) .divide-slate-700 > * {
+    border-color: #e5e7eb !important;
+  }
+
+  /* Shadow per dare profondità alla sidebar nel tema chiaro */
+  :root:not(.dark) .bg-slate-800::after {
+    box-shadow: 2px 0 8px rgba(0, 0, 0, 0.03);
+  }
+
+  /* Card e contenitori - grigio più piacevole nel tema chiaro */
+  :root:not(.dark) .bg-gray-100,
+  :root:not(.dark) .bg-gray-200,
+  :root:not(.dark) .bg-slate-100,
+  :root:not(.dark) .bg-slate-200 {
+    background-color: #f8fafc !important; /* Grigio chiarissimo */
+  }
+
+  :root:not(.dark) .bg-gray-300,
+  :root:not(.dark) .bg-slate-300 {
+    background-color: #f1f5f9 !important; /* Grigio chiaro */
+  }
+
+  :root:not(.dark) .bg-gray-400,
+  :root:not(.dark) .bg-gray-500,
+  :root:not(.dark) .bg-slate-400,
+  :root:not(.dark) .bg-slate-500 {
+    background-color: #e2e8f0 !important; /* Grigio medio chiaro */
+  }
+
+  :root:not(.dark) .bg-gray-600,
+  :root:not(.dark) .bg-slate-600 {
+    background-color: #cbd5e1 !important; /* Grigio più evidente ma chiaro */
+  }
+
+  /* Badge e tag con background grigio */
+  :root:not(.dark) [class*="bg-gray"],
+  :root:not(.dark) [class*="bg-slate"] {
+    color: #1f2937 !important; /* Assicura testo scuro */
+  }
+
+  /* Task cards e contenitori con bordi */
+  :root:not(.dark) .border-gray-200,
+  :root:not(.dark) .border-gray-300 {
+    border-color: #e5e7eb !important;
   }
 }

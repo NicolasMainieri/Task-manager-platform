@@ -1,23 +1,23 @@
 {
   "compilerOptions": {
     "target": "ES2020",
-    "useDefineForClassFields": true,
     "lib": ["ES2020", "DOM", "DOM.Iterable"],
     "module": "ESNext",
-    "skipLibCheck": true,
     "moduleResolution": "bundler",
-    "allowImportingTsExtensions": true,
-    "resolveJsonModule": true,
-    "isolatedModules": true,
-    "noEmit": true,
     "jsx": "react-jsx",
-    "jsxImportSource": "react",
-    "strict": false,
+
+    "strict": true,
+    "skipLibCheck": true,
+    "noEmit": true,
+    "isolatedModules": true,
+    "resolveJsonModule": true,
+
+    "allowJs": false,                  // disattiva JS per evitare di reimportare .jsx
     "noUnusedLocals": false,
     "noUnusedParameters": false,
     "noFallthroughCasesInSwitch": true,
     "verbatimModuleSyntax": false,
-    "allowJs": true
+    "types": ["vite/client"]           // utile in progetti Vite
   },
   "include": ["src"],
   "references": [{ "path": "./tsconfig.node.json" }]

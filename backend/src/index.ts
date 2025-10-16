@@ -7,6 +7,7 @@ import dotenv from "dotenv";
 import routes from "./routes/index";
 import { Server, Socket } from "socket.io";
 import { createServer } from "http";
+import { setupVideoCallSocket } from "./socket/videoCallSocket";
 
 dotenv.config();
 
@@ -62,6 +63,9 @@ io.on("connection", (socket: Socket) => {
 // Rendi io disponibile globalmente per inviare notifiche
 (global as any).io = io;
 
+// Setup Video Call Socket.IO namespace
+setupVideoCallSocket(io);
+
 // Error handler
 app.use(
   (err: any, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
@@ -81,3 +85,6 @@ httpServer.listen(PORT, () => {
   console.log(`🔗 API: http://localhost:${PORT}/api`);
   console.log(`✅ CORS abilitato per: ${ALLOWED_ORIGINS.join(', ')}`);
 });
+
+
+
