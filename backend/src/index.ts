@@ -1,6 +1,3 @@
-require('ts-node').register({
-  transpileOnly: true
-});
 import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
