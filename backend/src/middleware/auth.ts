@@ -4,9 +4,15 @@ import prisma from "../config/database";
 import { parseJsonField } from "../utils/jsonHelper";
 
 export interface AuthRequest extends Request {
+  body: any;
+  params: any;
+  query: any;
+  headers: any;
   user?: {
     id: string;
     email: string;
+    nome: string;
+    cognome: string;
     firstName: string;
     lastName: string;
     companyId: string;
@@ -15,6 +21,7 @@ export interface AuthRequest extends Request {
     role: {
       id: string;
       name: string;
+      nome: string;
       permessi: any;
       isAdmin?: boolean;
     };
