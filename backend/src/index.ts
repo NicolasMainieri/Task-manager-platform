@@ -38,13 +38,17 @@ app.use(cors({
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Routes
-app.use("/api", routes);
-
-// Health check
+// Health check - must be before routes
 app.get("/health", (_req, res) => {
   res.json({ status: "ok", timestamp: new Date().toISOString() });
 });
+
+app.get("/api/health", (_req, res) => {
+  res.json({ status: "ok", timestamp: new Date().toISOString() });
+});
+
+// Routes
+app.use("/api", routes);
 
 // Socket.io per notifiche real-time
 io.on("connection", (socket: Socket) => {
