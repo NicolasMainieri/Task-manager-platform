@@ -4,7 +4,22 @@ import prisma from "../config/database";
 import { parseJsonField } from "../utils/jsonHelper";
 
 export interface AuthRequest extends Request {
-  user?: any;
+  user?: {
+    id: string;
+    email: string;
+    firstName: string;
+    lastName: string;
+    companyId: string;
+    roleId: string;
+    teamId: string | null;
+    role: {
+      id: string;
+      name: string;
+      permessi: any;
+      isAdmin?: boolean;
+    };
+    team?: any;
+  };
 }
 
 export const authenticate = async (req: AuthRequest, res: Response, next: NextFunction) => {
