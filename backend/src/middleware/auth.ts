@@ -8,25 +8,7 @@ export interface AuthRequest extends Request {
   params: any;
   query: any;
   headers: any;
-  user?: {
-    id: string;
-    email: string;
-    nome: string;
-    cognome: string;
-    firstName: string;
-    lastName: string;
-    companyId: string;
-    roleId: string;
-    teamId: string | null;
-    role: {
-      id: string;
-      name: string;
-      nome: string;
-      permessi: any;
-      isAdmin?: boolean;
-    };
-    team?: any;
-  };
+  user?: any;
 }
 
 export const authenticate = async (req: AuthRequest, res: Response, next: NextFunction) => {
