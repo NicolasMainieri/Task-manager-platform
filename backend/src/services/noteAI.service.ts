@@ -4,17 +4,25 @@ import fs from "fs";
 import path from "path";
 import { Readable } from "stream";
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+const openai = process.env.OPENAI_API_KEY
+  ? new OpenAI({
+      apiKey: process.env.OPENAI_API_KEY,
+    })
+  : null;
 
 class NoteAIService {
+  private ensureOpenAI() {
+    if (!openai) {
+      throw new Error("OpenAI API key non configurata. Le funzionalità AI non sono disponibili.");
+    }
+  }
   /**
    * Genera un riassunto della nota
    */
   async generateSummary(contenuto: string): Promise<string> {
+    this.ensureOpenAI();
     try {
-      const response = await openai.chat.completions.create({
+      const response = await openai!.chat.completions.create({
         model: "gpt-4o-mini",
         messages: [
           {
@@ -42,8 +50,9 @@ class NoteAIService {
    * Converte il testo in bullet points
    */
   async generateBulletPoints(contenuto: string): Promise<string> {
+    this.ensureOpenAI();
     try {
-      const response = await openai.chat.completions.create({
+      const response = await openai!.chat.completions.create({
         model: "gpt-4o-mini",
         messages: [
           {
@@ -71,8 +80,9 @@ class NoteAIService {
    * Corregge grammatica e ortografia
    */
   async correctGrammar(contenuto: string): Promise<string> {
+    this.ensureOpenAI();
     try {
-      const response = await openai.chat.completions.create({
+      const response = await openai!.chat.completions.create({
         model: "gpt-4o-mini",
         messages: [
           {
@@ -99,6 +109,7 @@ class NoteAIService {
    * Traduce il testo
    */
   async translate(contenuto: string, targetLang: string = "en"): Promise<string> {
+    this.ensureOpenAI();
     try {
       const langMap: Record<string, string> = {
         en: "inglese",
@@ -114,7 +125,7 @@ class NoteAIService {
 
       const targetLanguage = langMap[targetLang] || targetLang;
 
-      const response = await openai.chat.completions.create({
+      const response = await openai!.chat.completions.create({
         model: "gpt-4o-mini",
         messages: [
           {
@@ -140,8 +151,9 @@ class NoteAIService {
    * Espande una nota breve in una più dettagliata
    */
   async expandNote(contenuto: string): Promise<string> {
+    this.ensureOpenAI();
     try {
-      const response = await openai.chat.completions.create({
+      const response = await openai!.chat.completions.create({
         model: "gpt-4o-mini",
         messages: [
           {
@@ -173,6 +185,7 @@ class NoteAIService {
     duration: number;
     language: string;
   }> {
+    this.ensureOpenAI();
     let tempFilePath: string | null = null;
 
     try {
@@ -188,7 +201,7 @@ class NoteAIService {
       // Crea un file stream per OpenAI
       const fileStream = fs.createReadStream(tempFilePath);
 
-      const response = await openai.audio.transcriptions.create({
+      const response = await openai!.audio.transcriptions.create({
         file: fileStream as any,
         model: "whisper-1",
         language: language,
@@ -218,8 +231,9 @@ class NoteAIService {
     titolo: string;
     contenuto: string;
   }> {
+    this.ensureOpenAI();
     try {
-      const response = await openai.chat.completions.create({
+      const response = await openai!.chat.completions.create({
         model: "gpt-4o-mini",
         messages: [
           {
@@ -262,8 +276,9 @@ class NoteAIService {
     actionItems: string[];
     keyPoints: string[];
   }> {
+    this.ensureOpenAI();
     try {
-      const response = await openai.chat.completions.create({
+      const response = await openai!.chat.completions.create({
         model: "gpt-4o-mini",
         messages: [
           {
@@ -305,6 +320,7 @@ class NoteAIService {
     participants: string[];
     duration: string;
   }> {
+    this.ensureOpenAI();
     try {
       // Recupera messaggi della chat e info room
       const room = await prisma.videoRoom.findUnique({
