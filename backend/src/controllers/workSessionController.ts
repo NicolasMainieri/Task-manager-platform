@@ -60,6 +60,18 @@ export const startWorkSession = async (req: Request, res: Response) => {
         userId,
         stato: { in: ['active', 'paused'] },
       },
+      include: {
+        subtask: {
+          include: {
+            task: {
+              select: {
+                id: true,
+                titolo: true,
+              },
+            },
+          },
+        },
+      },
     });
 
     if (existingActiveSession) {
@@ -320,6 +332,85 @@ export const getWorkSessions = async (req: Request, res: Response) => {
   } catch (error) {
     console.error('Errore getWorkSessions:', error);
     res.status(500).json({ error: 'Errore durante il recupero delle sessioni' });
+  }
+};
+
+// Forza la chiusura di tutte le sessioni attive/paused dell'utente
+export const forceStopAllSessions = async (req: Request, res: Response) => {
+  try {
+    const userId = (req as any).user?.id;
+
+    // Trova tutte le sessioni attive o in pausa
+    const activeSessions = await prisma.workSession.findMany({
+      where: {
+        userId,
+        stato: { in: ['active', 'paused'] },
+      },
+      include: {
+        subtask: {
+          include: {
+            task: true,
+          },
+        },
+      },
+    });
+
+    if (activeSessions.length === 0) {
+      return res.json({ message: 'Nessuna sessione attiva da chiudere', count: 0 });
+    }
+
+    const now = new Date();
+    const closedSessions = [];
+
+    for (const session of activeSessions) {
+      let tempoFinale = session.tempoAccumulato;
+
+      // Se la sessione era attiva, aggiungi il tempo dall'ultimo update
+      if (session.stato === 'active') {
+        const tempoTrascorso = Math.floor((now.getTime() - session.lastUpdateAt.getTime()) / 1000);
+        tempoFinale += tempoTrascorso;
+      }
+
+      // Aggiorna la sessione come completata
+      const updatedSession = await prisma.workSession.update({
+        where: { id: session.id },
+        data: {
+          stato: 'completed',
+          completedAt: now,
+          tempoAccumulato: tempoFinale,
+          lastUpdateAt: now,
+        },
+      });
+
+      // Crea un worklog per la task
+      const minuti = Math.ceil(tempoFinale / 60);
+      if (minuti > 0) {
+        await prisma.taskWorklog.create({
+          data: {
+            taskId: session.subtask.taskId,
+            userId,
+            minuti,
+            note: `Lavoro su subtask: ${session.subtask.titolo} (chiuso automaticamente)`,
+          },
+        });
+      }
+
+      closedSessions.push({
+        sessionId: session.id,
+        subtaskTitle: session.subtask.titolo,
+        taskTitle: session.subtask.task.titolo,
+        minuti,
+      });
+    }
+
+    res.json({
+      message: `${closedSessions.length} sessione/i chiusa/e con successo`,
+      count: closedSessions.length,
+      sessions: closedSessions,
+    });
+  } catch (error) {
+    console.error('Errore forceStopAllSessions:', error);
+    res.status(500).json({ error: 'Errore durante la chiusura forzata delle sessioni' });
   }
 };
 

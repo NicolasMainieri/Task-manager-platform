@@ -7,7 +7,7 @@ class CalendarController {
   // Crea un evento calendario
   async createEvent(req: AuthRequest, res: Response) {
     try {
-      const { titolo, descrizione, tipo, dataInizio, dataFine, luogo, linkMeeting, allDay, colore, partecipantiIds, taskId, reminderMinutes } = req.body;
+      const { titolo, descrizione, tipo, dataInizio, dataFine, luogo, linkMeeting, allDay, colore, partecipantiIds, taskId, reminderMinutes, contactIds } = req.body;
 
       if (!titolo || !dataInizio || !dataFine) {
         return res.status(400).json({ error: "Titolo, dataInizio e dataFine sono obbligatori" });
@@ -32,6 +32,7 @@ class CalendarController {
           organizerId: req.user!.id,
           taskId,
           reminderMinutes: reminderMinutes || 15,
+          contactIds: stringifyJsonField(contactIds || []),
           partecipanti: partecipantiIds ? { connect: partecipantiIds.map((id: string) => ({ id })) } : undefined
         },
         include: {
@@ -164,7 +165,7 @@ class CalendarController {
   async updateEvent(req: AuthRequest, res: Response) {
     try {
       const { id } = req.params;
-      const { titolo, descrizione, tipo, dataInizio, dataFine, luogo, linkMeeting, allDay, colore, partecipantiIds, reminderMinutes } = req.body;
+      const { titolo, descrizione, tipo, dataInizio, dataFine, luogo, linkMeeting, allDay, colore, partecipantiIds, reminderMinutes, contactIds } = req.body;
 
       const existingEvent = await prisma.calendarEvent.findUnique({
         where: { id },
@@ -202,6 +203,7 @@ class CalendarController {
 
       if (dataInizio) updateData.dataInizio = new Date(dataInizio);
       if (dataFine) updateData.dataFine = new Date(dataFine);
+      if (contactIds) updateData.contactIds = stringifyJsonField(contactIds);
 
       if (partecipantiIds) {
         updateData.partecipanti = { set: partecipantiIds.map((id: string) => ({ id })) };

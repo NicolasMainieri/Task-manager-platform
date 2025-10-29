@@ -53,35 +53,35 @@ function App() {
   return (
     <AuthProvider>
       <Router>
-        <Routes>
-          {/* Landing Page - Pubblica, accessibile a tutti */}
-          <Route path="/" element={<Landing />} />
+          <Routes>
+            {/* Landing Page - Pubblica, accessibile a tutti */}
+            <Route path="/" element={<Landing />} />
 
-          {/* Login - Reindirizza a dashboard se già autenticato */}
-          <Route
-            path="/login"
-            element={
-              <LoginRoute>
-                <Login />
-              </LoginRoute>
-            }
-          />
+            {/* Login - Reindirizza a dashboard se già autenticato */}
+            <Route
+              path="/login"
+              element={
+                <LoginRoute>
+                  <Login />
+                </LoginRoute>
+              }
+            />
 
-          {/* Dashboard - Protetta, usa il router intelligente */}
-          <Route
-            path="/dashboard"
-            element={
-              <ProtectedRoute>
-                <DashboardRouter />
-              </ProtectedRoute>
-            }
-          />
+            {/* Dashboard - Protetta, usa il router intelligente */}
+            <Route
+              path="/dashboard"
+              element={
+                <ProtectedRoute>
+                  <DashboardRouter />
+                </ProtectedRoute>
+              }
+            />
 
-          {/* Catch-all: reindirizza alla landing */}
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
-      </Router>
-    </AuthProvider>
+            {/* Catch-all: reindirizza alla landing */}
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
+        </Router>
+      </AuthProvider>
   );
 }
 

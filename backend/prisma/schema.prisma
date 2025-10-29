@@ -3,7 +3,7 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
+  provider = "sqlite"
   url      = env("DATABASE_URL")
 }
 
@@ -42,6 +42,7 @@ model Company {
   roles       Role[]      @relation("CompanyRoles")
   ticketCategories TicketCategory[] @relation("CompanyTicketCategories")
   roleChangeRequests RoleChangeRequest[] @relation("CompanyRoleChangeRequests")
+  rewards     Reward[]    @relation("CompanyRewards")
 }
 
 model Role {
@@ -137,6 +138,14 @@ model User {
   notes            Note[]           @relation("NoteAuthor")
   roleChangeRequests RoleChangeRequest[] @relation("UserRoleChangeRequests")
   roleChangeRequestsReviewed RoleChangeRequest[] @relation("ReviewedRoleChangeRequests")
+  rewardRedemptions RewardRedemption[] @relation("UserRedemptions")
+  chatMessages     ChatMessage[]    @relation("ChatMessageAuthor")
+  projectsOwned    Progetto[]       @relation("ProjectOwner")
+  directMessagesSent DirectMessage[] @relation("DirectMessageSender")
+  directMessagesReceived DirectMessage[] @relation("DirectMessageReceiver")
+  foldersOwned     Folder[]         @relation("FolderOwner")
+  sharedFolders    FolderShare[]    @relation("SharedFolders")
+  videoRoomMessages VideoRoomMessage[] @relation("UserVideoRoomMessages")
 
   @@index([companyId])
   @@index([status])
@@ -146,10 +155,62 @@ model Progetto {
   id          String   @id @default(uuid())
   nome        String
   descrizione String?
-  colore      String?
+  colore      String?  @default("#3B82F6")
+
+  // Stato del progetto
+  stato       String   @default("in_progress") // 'in_progress', 'completed', 'archived'
+  progresso   Int      @default(0) // 0-100% calcolato automaticamente
+  isActive    Boolean  @default(false) // Se true, il progetto è attivo e le task possono essere lavorate
+
+  // Reward system
+  rewardPoints    Int      @default(500) // Punti da distribuire al completamento
+  rewardDistributed Boolean @default(false) // Se i premi sono già stati distribuiti
+
+  // Organizzazione gerarchica (cartelle)
+  parentId    String?
+  parent      Progetto?  @relation("SubProjects", fields: [parentId], references: [id], onDelete: Cascade)
+  subProjects Progetto[] @relation("SubProjects")
+  isFolder    Boolean    @default(false) // true se è una cartella, false se è un progetto
+
+  // Cartella collegata nel Drive (ogni progetto = una cartella automatica)
+  driveFolderId String?  @unique // Cartella automatica nel Drive per documenti del progetto
+
+  // Owner e membri del team
+  ownerId     String
+  owner       User       @relation("ProjectOwner", fields: [ownerId], references: [id])
+
+  // Membri del progetto (array JSON di user IDs)
+  memberIds   String     @default("[]") // Array JSON di user IDs del team
+
+  // Contatti associati (array JSON di contact IDs)
+  contactIds  String     @default("[]") // Array JSON di contact IDs
+
+  // Azienda (isolamento dati)
+  companyId   String
+
+  // Date
+  dataInizio  DateTime?
+  scadenza    DateTime?
+  dataCompletamento DateTime? // Quando è stato completato
+
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+
+  // Relazioni con altre entità
   tasks       Task[]
+  notes       Note[]     @relation("ProjectNotes")
+  documents   Document[] @relation("ProjectDocuments")
+  events      CalendarEvent[] @relation("ProjectEvents")
+  emails      Email[]    @relation("ProjectEmails")
+  crms        CRMTemplate[] @relation("ProjectCRMs") // CRM collegati al progetto
+
+  @@index([companyId])
+  @@index([ownerId])
+  @@index([parentId])
+  @@index([stato])
+  @@index([isFolder])
+  @@index([isActive])
+  @@index([driveFolderId])
 }
 
 model Task {
@@ -164,6 +225,10 @@ model Task {
   dataInizio    DateTime?
   dataFine      DateTime?
 
+  // Reward system
+  rewardPoints  Int           @default(50) // Punti base per completamento (default 50)
+  rewardPerSubtask Int        @default(10) // Punti per ogni subtask completata (default 10)
+
   ownerId     String
   owner       User          @relation("TaskOwner", fields: [ownerId], references: [id])
 
@@ -177,6 +242,7 @@ model Task {
 
   tags        String        @default("[]")
   checklist   String        @default("[]")
+  contactIds  String        @default("[]") // Array JSON di contact IDs taggati
   createdAt   DateTime      @default(now())
   updatedAt   DateTime      @updatedAt
 
@@ -188,6 +254,7 @@ model Task {
   subtasks    Subtask[]
   calendarEvents CalendarEvent[]
   emails      Email[]
+  documents   Document[]    @relation("TaskDocuments")
 
   @@index([ownerId])
   @@index([teamId])
@@ -322,8 +389,8 @@ model Score {
   id              String   @id @default(uuid())
   userId          String
   user            User     @relation(fields: [userId], references: [id])
-  taskId          String
-  task            Task     @relation(fields: [taskId], references: [id])
+  taskId          String?  // Opzionale per permettere score non legati a task
+  task            Task?    @relation(fields: [taskId], references: [id])
   puntiBase       Int
   punti           Int
   moltiplicatore  Float    @default(1.0)
@@ -332,12 +399,45 @@ model Score {
   puntiTotali     Int
   periodo         String?
   breakdown       String   @default("{}")
+  tipo            String   @default("task_completion") // 'task_completion', 'daily_penalty', 'daily_bonus', 'activity_bonus'
   createdAt       DateTime @default(now())
 
   @@index([userId])
   @@index([taskId])
   @@index([createdAt])
   @@index([periodo])
+  @@index([tipo])
+}
+
+// Penalità giornaliere per task scadute
+model DailyPenalty {
+  id          String   @id @default(uuid())
+  userId      String
+  taskId      String
+  giornoRitardo Int    // Numero di giorni di ritardo
+  puntPenalita Int     // Punti sottratti
+  applicata   Boolean  @default(false) // Se è stata applicata allo score
+  data        DateTime @default(now()) // Data in cui è stata calcolata
+
+  @@index([userId])
+  @@index([taskId])
+  @@index([data])
+  @@index([applicata])
+  @@unique([userId, taskId, data]) // Una penalità per task per giorno
+}
+
+// Bonus giornalieri per attività
+model DailyBonus {
+  id          String   @id @default(uuid())
+  userId      String
+  tipo        String   // 'login', 'first_task', 'focus_time', 'collaboration', 'early_completion'
+  punti       Int      // Punti bonus assegnati
+  descrizione String?  // Descrizione del bonus
+  data        DateTime @default(now())
+
+  @@index([userId])
+  @@index([tipo])
+  @@index([data])
 }
 
 model Notification {
@@ -518,7 +618,7 @@ model AuditLog {
 model Note {
   id          String   @id @default(uuid())
   titolo      String
-  tipo        String   @default("text") // 'text', 'spreadsheet', 'whiteboard'
+  tipo        String   @default("text") // 'text', 'spreadsheet', 'whiteboard', 'transcription', 'ai_generated'
   contenuto   String   @default("") // Contenuto in formato HTML/Markdown/JSON
   categoria   String?  // Categoria personalizzata
   colore      String?  @default("#3B82F6") // Colore per organizzazione visiva
@@ -541,6 +641,21 @@ model Note {
   // Collegamenti
   taskId      String?  // Task collegato (opzionale)
   progettoId  String?  // Progetto collegato (opzionale)
+  progetto    Progetto? @relation("ProjectNotes", fields: [progettoId], references: [id])
+  contactIds  String   @default("[]") // Array JSON di contact IDs taggati
+
+  // AI Features
+  aiGenerated     Boolean  @default(false) // Se la nota è stata generata dall'AI
+  aiSummary       String?  // Riassunto generato dall'AI
+  aiPrompt        String?  // Prompt usato per generare la nota (se AI generated)
+
+  // Trascrizione videochiamate
+  isTranscription Boolean  @default(false) // Se è una trascrizione
+  videoCallId     String?  // ID della videochiamata (se trascrizione)
+  audioUrl        String?  // URL del file audio originale
+  transcriptionLang String? @default("it") // Lingua della trascrizione
+  transcriptionDuration Int? // Durata in secondi
+  speakers        String   @default("[]") // Array JSON di speaker identificati
 
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -552,6 +667,9 @@ model Note {
   @@index([isArchived])
   @@index([taskId])
   @@index([progettoId])
+  @@index([aiGenerated])
+  @@index([isTranscription])
+  @@index([videoCallId])
 }
 
 model CalendarEvent {
@@ -577,6 +695,13 @@ model CalendarEvent {
   taskId      String?
   task        Task?    @relation(fields: [taskId], references: [id])
 
+  // Progetto collegato (opzionale)
+  progettoId  String?
+  progetto    Progetto? @relation("ProjectEvents", fields: [progettoId], references: [id], onDelete: Cascade)
+
+  // Contatti taggati
+  contactIds  String   @default("[]") // Array JSON di contact IDs taggati
+
   // Notifiche
   reminderMinutes Int?  @default(15) // Minuti prima dell'evento
 
@@ -586,6 +711,7 @@ model CalendarEvent {
   @@index([organizerId])
   @@index([dataInizio])
   @@index([taskId])
+  @@index([progettoId])
 }
 
 model Email {
@@ -606,9 +732,13 @@ model Email {
   userId      String
   user        User     @relation(fields: [userId], references: [id])
 
-  // Task o progetto collegato (opzionale)
+  // Task collegato (opzionale)
   taskId      String?
   task        Task?    @relation(fields: [taskId], references: [id])
+
+  // Progetto collegato (opzionale)
+  progettoId  String?
+  progetto    Progetto? @relation("ProjectEmails", fields: [progettoId], references: [id], onDelete: Cascade)
 
   // Thread email
   threadId    String?  // Per raggruppare email correlate
@@ -622,6 +752,7 @@ model Email {
   @@index([userId])
   @@index([stato])
   @@index([taskId])
+  @@index([progettoId])
   @@index([threadId])
   @@index([dataInvio])
 }
@@ -815,6 +946,7 @@ model VideoRoomMessage {
   room        VideoRoom @relation(fields: [roomId], references: [id], onDelete: Cascade)
 
   userId      String
+  user        User     @relation("UserVideoRoomMessages", fields: [userId], references: [id])
 
   messaggio   String
   tipo        String   @default("text") // 'text', 'system', 'emoji'
@@ -824,4 +956,618 @@ model VideoRoomMessage {
   @@index([roomId])
   @@index([userId])
   @@index([createdAt])
+}
+
+// Sistema di premi per gamificazione dipendenti
+model Reward {
+  id          String   @id @default(uuid())
+  nome        String   // es: "iPhone 17 Pro Max"
+  descrizione String?
+  immagine    String?  // URL immagine del premio
+
+  // Costi del premio
+  costoScore      Int      // Punti totali richiesti (es: 10)
+  costoMensile    Int      // Punti mensili richiesti (es: 5)
+
+  // Disponibilità
+  quantita        Int      @default(1) // Quantità disponibili (-1 = illimitato)
+  disponibile     Boolean  @default(true) // Se disabilitato dall'admin
+
+  // Azienda (isolamento)
+  companyId   String
+  company     Company  @relation("CompanyRewards", fields: [companyId], references: [id], onDelete: Cascade)
+
+  // Riscatti del premio
+  redemptions RewardRedemption[]
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([companyId])
+  @@index([disponibile])
+}
+
+// Riscatti premi da parte dei dipendenti
+model RewardRedemption {
+  id          String   @id @default(uuid())
+
+  // Premio riscattato
+  rewardId    String
+  reward      Reward   @relation(fields: [rewardId], references: [id], onDelete: Cascade)
+
+  // Dipendente che ha riscattato
+  userId      String
+  user        User     @relation("UserRedemptions", fields: [userId], references: [id])
+
+  // Stato del riscatto
+  stato       String   @default("pending") // 'pending', 'approved', 'rejected', 'awaiting_pickup', 'delivered'
+
+  // Note admin
+  adminNote   String?
+
+  // Metodo di ritiro
+  metodoRitiro String? // 'consegna_casa', 'ritiro_persona'
+
+  // Dati consegna (se metodoRitiro = 'consegna_casa')
+  indirizzoConsegna String?
+  cittaConsegna     String?
+  capConsegna       String?
+  telefonoConsegna  String?
+  noteConsegna      String?
+
+  // Azienda (isolamento)
+  companyId   String
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([rewardId])
+  @@index([userId])
+  @@index([companyId])
+  @@index([stato])
+}
+
+// Sistema di chat aziendale
+model ChatMessage {
+  id          String   @id @default(uuid())
+
+  // Contenuto messaggio
+  messaggio   String
+  menzioni    String   @default("[]") // Array JSON di user IDs menzionati con @
+
+  // Autore del messaggio
+  autoreId    String
+  autore      User     @relation("ChatMessageAuthor", fields: [autoreId], references: [id])
+
+  // Azienda (isolamento dati)
+  companyId   String
+
+  // Stato messaggio
+  modificato  Boolean  @default(false)
+  eliminato   Boolean  @default(false)
+
+  // Reactions (emoji reactions)
+  reactions   String   @default("{}") // JSON: { "❤️": ["userId1", "userId2"], "👍": ["userId3"] }
+
+  // Thread/Reply
+  replyToId   String?
+  replyTo     ChatMessage?  @relation("MessageReplies", fields: [replyToId], references: [id], onDelete: SetNull)
+  replies     ChatMessage[] @relation("MessageReplies")
+
+  // Allegati (opzionale - futuro)
+  allegati    String   @default("[]") // Array JSON di URLs
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Tracciamento lettura
+  readBy      ChatMessageRead[]
+
+  @@index([companyId])
+  @@index([autoreId])
+  @@index([createdAt])
+  @@index([replyToId])
+}
+
+// Tracciamento lettura messaggi chat
+model ChatMessageRead {
+  id          String   @id @default(uuid())
+
+  messageId   String
+  message     ChatMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
+
+  userId      String
+
+  readAt      DateTime @default(now())
+
+  @@unique([messageId, userId])
+  @@index([messageId])
+  @@index([userId])
+}
+
+// Contatti globali (indipendenti da progetti)
+model Contact {
+  id          String   @id @default(uuid())
+  nome        String
+  cognome     String?
+  email       String?
+  emailAziendale String?
+  telefono    String?
+  telefonoCellulare String?
+  azienda     String?
+  ruolo       String?  // Ruolo nella loro azienda
+  indirizzo   String?
+  citta       String?
+  cap         String?
+  paese       String?
+  sito        String?  // Sito web
+  linkedin    String?  // Profilo LinkedIn
+  note        String?
+  tags        String   @default("[]") // Array JSON di tags
+  avatar      String?  // URL avatar/foto
+
+  // Collegamenti a task, progetti, note, eventi
+  collegamenti String  @default("[]") // Array JSON di { tipo: 'task'|'progetto'|'nota'|'evento', id: string, titolo: string }
+
+  // Creatore del contatto
+  createdById String
+
+  // Azienda (isolamento dati)
+  companyId   String
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([companyId])
+  @@index([email])
+  @@index([emailAziendale])
+  @@index([createdById])
+}
+
+// Cartelle per organizzare i documenti
+model Folder {
+  id          String   @id @default(uuid())
+  nome        String
+  descrizione String?
+  colore      String?  @default("#3B82F6")
+
+  // Gerarchia cartelle (opzionale)
+  parentFolderId String?
+  parentFolder   Folder?  @relation("FolderHierarchy", fields: [parentFolderId], references: [id], onDelete: Cascade)
+  subFolders     Folder[] @relation("FolderHierarchy")
+
+  // Proprietario della cartella
+  ownerId     String
+  owner       User     @relation("FolderOwner", fields: [ownerId], references: [id])
+
+  // Azienda (isolamento dati)
+  companyId   String
+
+  // Condivisione
+  sharedWith  FolderShare[]
+
+  // Documenti nella cartella
+  documents   Document[]
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([ownerId])
+  @@index([companyId])
+  @@index([parentFolderId])
+}
+
+// Condivisione cartelle con utenti
+model FolderShare {
+  id          String   @id @default(uuid())
+
+  folderId    String
+  folder      Folder   @relation(fields: [folderId], references: [id], onDelete: Cascade)
+
+  userId      String
+  user        User     @relation("SharedFolders", fields: [userId], references: [id], onDelete: Cascade)
+
+  // Permessi
+  canView     Boolean  @default(true)
+  canEdit     Boolean  @default(false)
+  canDelete   Boolean  @default(false)
+  canShare    Boolean  @default(false)
+
+  createdAt   DateTime @default(now())
+
+  @@unique([folderId, userId])
+  @@index([folderId])
+  @@index([userId])
+}
+
+// Documenti per progetti e contatti
+model Document {
+  id          String   @id @default(uuid())
+  nome        String
+  descrizione String?
+  tipo        String   // 'pdf', 'doc', 'xls', 'ppt', 'img', 'audio', 'video', 'archive', 'other'
+  dimensione  Int?     // Dimensione in bytes
+  url         String   // URL del file (storage esterno o locale)
+  mimeType    String?  // MIME type del file
+
+  // Versioning
+  versione    String   @default("1.0")
+  isLatest    Boolean  @default(true)
+  parentDocId String?  // ID del documento padre (per versioning)
+
+  // Cartella (opzionale)
+  folderId    String?
+  folder      Folder?  @relation(fields: [folderId], references: [id], onDelete: SetNull)
+
+  // Collegamento progetto O contatto O task (opzionali, almeno uno deve essere presente)
+  progettoId  String?
+  progetto    Progetto? @relation("ProjectDocuments", fields: [progettoId], references: [id], onDelete: Cascade)
+
+  contactId   String?  // Collegamento a contatto
+
+  taskId      String?  // Collegamento a task
+  task        Task?    @relation("TaskDocuments", fields: [taskId], references: [id], onDelete: Cascade)
+
+  // Chi ha caricato
+  uploadedById String
+
+  // Azienda (isolamento dati)
+  companyId   String
+
+  // Tags e categorizzazione
+  tags        String   @default("[]") // Array JSON di tags
+  categoria   String?  // Categoria custom
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([folderId])
+  @@index([progettoId])
+  @@index([contactId])
+  @@index([taskId])
+  @@index([companyId])
+  @@index([uploadedById])
+  @@index([tipo])
+  @@index([isLatest])
+}
+
+// Messaggi diretti tra utenti (chat 1-to-1)
+model DirectMessage {
+  id          String   @id @default(uuid())
+
+  // Mittente e destinatario
+  senderId    String
+  sender      User     @relation("DirectMessageSender", fields: [senderId], references: [id])
+
+  receiverId  String
+  receiver    User     @relation("DirectMessageReceiver", fields: [receiverId], references: [id])
+
+  // Contenuto messaggio
+  messaggio   String
+
+  // Stato messaggio
+  letto       Boolean  @default(false)
+  lettoAt     DateTime?
+  modificato  Boolean  @default(false)
+  eliminato   Boolean  @default(false)
+
+  // Azienda (isolamento dati - entrambi devono essere della stessa azienda)
+  companyId   String
+
+  // Allegati (opzionale)
+  allegati    String   @default("[]") // Array JSON di URLs
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([senderId])
+  @@index([receiverId])
+  @@index([companyId])
+  @@index([createdAt])
+  @@index([letto])
+}
+
+// ===================================
+// SISTEMA CRM PERSONALIZZABILE
+// ===================================
+
+// Template CRM - Definisce un tipo di CRM con i suoi campi custom
+model CRMTemplate {
+  id          String   @id @default(uuid())
+  nome        String   // es: "Tracciato Clienti Fondo Investimento"
+  descrizione String?
+  icona       String?  @default("Users") // Nome icona lucide-react
+  colore      String?  @default("#3B82F6")
+  nomeTabella String?  // Nome personalizzato per la tabella (default: "Record")
+
+  // Creatore del CRM
+  createdById String
+
+  // Azienda (isolamento dati)
+  companyId   String
+
+  // Progetto collegato (opzionale)
+  progettoId  String?
+  progetto    Progetto? @relation("ProjectCRMs", fields: [progettoId], references: [id], onDelete: Cascade)
+
+  // Campi personalizzati del CRM
+  fields      CRMField[]
+
+  // Record inseriti in questo CRM
+  records     CRMRecord[]
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @default(now()) @updatedAt
+
+  @@index([companyId])
+  @@index([createdById])
+  @@index([progettoId])
+}
+
+// Campi personalizzati per ogni CRM
+model CRMField {
+  id          String   @id @default(uuid())
+
+  // CRM di appartenenza
+  crmTemplateId String
+  crmTemplate   CRMTemplate @relation(fields: [crmTemplateId], references: [id], onDelete: Cascade)
+
+  // Definizione campo
+  nome        String   // es: "€ Investiti", "Azienda", "Data Primo Contatto"
+  tipo        String   // 'text', 'number', 'currency', 'date', 'select', 'multiselect', 'contact', 'boolean'
+  descrizione String?
+
+  // Ordine di visualizzazione
+  ordine      Int      @default(0)
+
+  // Configurazione campo
+  obbligatorio Boolean  @default(false)
+
+  // Opzioni per select/multiselect (JSON array)
+  opzioni     String   @default("[]") // es: ["Cliente", "Prospect", "Ex-Cliente"]
+
+  // Valore di default
+  valoreDefault String?
+
+  // Se true, questo campo verrà sommato nelle statistiche (per number/currency)
+  isAggregabile Boolean @default(false)
+
+  // Se true, questo campo verrà mostrato come statistica principale (es: totale investimenti)
+  isStatPrincipale Boolean @default(false)
+
+  createdAt   DateTime @default(now())
+
+  @@index([crmTemplateId])
+  @@index([ordine])
+}
+
+// Record/Cliente inserito in un CRM
+model CRMRecord {
+  id          String   @id @default(uuid())
+
+  // CRM di appartenenza
+  crmTemplateId String
+  crmTemplate   CRMTemplate @relation(fields: [crmTemplateId], references: [id], onDelete: Cascade)
+
+  // Dati del record (JSON con chiavi = nomi campi, valori = valori inseriti)
+  dati        String   @default("{}") // es: { "€ Investiti": "50000", "Azienda": "Acme Corp", "Data Primo Contatto": "2025-01-15" }
+
+  // Contatto collegato (opzionale - se creato da contatto esistente)
+  contactId   String?
+
+  // Chi ha creato il record
+  createdById String
+
+  // Azienda (isolamento dati)
+  companyId   String
+
+  // Note aggiuntive
+  note        String?
+
+  // Tags personalizzati
+  tags        String   @default("[]")
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([crmTemplateId])
+  @@index([contactId])
+  @@index([createdById])
+  @@index([companyId])
+}
+
+// ===================================
+// SISTEMA PREVENTIVI CON AI
+// ===================================
+
+// Preventivi generati automaticamente dall'AI
+model Preventivo {
+  id          String   @id @default(uuid())
+
+  // Informazioni cliente
+  nomeCliente     String   // Nome o Azienda del cliente
+  emailCliente    String?
+  telefonoCliente String?
+
+  // Collegamento a contatto esistente (opzionale)
+  contactId       String?
+
+  // Informazioni azienda che emette il preventivo
+  aziendaEmittente String
+  logoAzienda      String?  // URL logo
+
+  // Prodotti e link
+  linkProdotti    String   @default("[]") // Array JSON di link prodotti online
+  linkImmagini    String   @default("[]") // Array JSON di link immagini prodotti
+
+  // Array di prodotti - JSON: [{ codiceArticolo, nome, descrizione, prezzo, quantita, caratteristiche, funzionalita }]
+  prodotti        String   @default("[]")
+
+  // Dati estratti dall'AI (legacy - mantenuti per compatibilità)
+  nomeProdotto        String?
+  descrizioneProdotto String?  // Testo lungo
+  caratteristiche     String   @default("[]") // Array JSON di caratteristiche
+  funzionalita        String   @default("[]") // Array JSON di funzionalità
+  compatibilita       String   @default("[]") // Array JSON dispositivi compatibili
+  vantaggi            String   @default("[]") // Array JSON di vantaggi
+  riconoscimenti      String   @default("[]") // Array JSON di riconoscimenti/certificazioni
+
+  // Prezzo totale e sconto
+  prezzoOriginale Float    // Prezzo totale base (somma prezzi prodotti)
+  percentualeSconto Float  @default(0) // % di sconto personalizzato
+  prezzoFinale    Float    // Prezzo finale dopo sconto
+
+  // Cosa include il prodotto
+  cosaRicevi      String   @default("[]") // Array JSON di cosa ricevi
+
+  // Procedura d'acquisto
+  passaggiAcquisto String  @default("[]") // Array JSON di step per acquisto
+
+  // Garanzie
+  garanzie        String   @default("[]") // Array JSON di garanzie offerte
+
+  // Stato del preventivo
+  stato           String   @default("bozza") // 'bozza', 'inviato', 'approvato', 'rifiutato'
+
+  // File generati
+  urlPdf          String?  // URL del PDF generato
+  urlExcel        String?  // URL dell'Excel generato
+
+  // Validità preventivo
+  dataEmissione   DateTime @default(now())
+  dataScadenza    DateTime? // Scadenza validità preventivo
+
+  // Note aggiuntive
+  noteAggiuntive  String?
+
+  // Chi ha creato il preventivo
+  createdById     String
+
+  // Azienda (isolamento dati)
+  companyId       String
+
+  // AI metadata
+  aiPromptUsato   String?  // Prompt usato per estrazione dati
+  aiModel         String?  @default("gpt-4") // Modello AI usato
+  aiProcessedAt   DateTime? // Quando l'AI ha processato i dati
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([companyId])
+  @@index([createdById])
+  @@index([contactId])
+  @@index([stato])
+  @@index([dataEmissione])
+}
+
+// ===================================
+// SISTEMA NEWSLETTER CON AI
+// ===================================
+
+// Newsletter con HTML editor e invio automatico
+model Newsletter {
+  id          String   @id @default(uuid())
+
+  // Informazioni newsletter
+  nome        String   // Nome interno della newsletter
+  oggetto     String   // Oggetto email
+  contenutoHTML String  // Contenuto HTML completo della newsletter
+
+  // Anteprima testo
+  anteprimaTesto String? // Testo preview per client email
+
+  // Stato
+  stato       String   @default("bozza") // 'bozza', 'programmata', 'inviata', 'in_invio', 'errore'
+
+  // Programmazione invio
+  tipoProgrammazione String @default("manuale") // 'manuale', 'ricorrente', 'evento_promozionale'
+  dataProgrammata    DateTime? // Data/ora programmata per invio
+
+  // Ricorrenza (se tipoProgrammazione = 'ricorrente')
+  ricorrenza         String?  @default("{}") // JSON: { tipo: 'giornaliero'|'settimanale'|'mensile', giorni: [1,2,3], ora: '09:00' }
+  isRicorrente       Boolean  @default(false)
+
+  // Evento promozionale AI (se tipoProgrammazione = 'evento_promozionale')
+  eventoPromozionale String?  // 'black_friday', 'cyber_monday', 'natale', 'estate', 'custom'
+  dataEventoInizio   DateTime?
+  dataEventoFine     DateTime?
+
+  // Destinatari
+  tipoDestinatari    String   @default("contatti_interni") // 'contatti_interni', 'lista_esterna', 'entrambi'
+  contattiInterni    String   @default("[]") // Array JSON di contact IDs interni
+  listaEsterna       String   @default("[]") // Array JSON di email esterne caricate
+
+  // Filtri destinatari (opzionale)
+  filtriDestinatari  String   @default("{}") // JSON: { tags: [], aziende: [], ruoli: [] }
+
+  // Statistiche invio
+  totaleDestinatari  Int      @default(0)
+  totaleInviati      Int      @default(0)
+  totaleAperti       Int      @default(0) // Future: tracking aperture
+  totaleClick        Int      @default(0) // Future: tracking click
+
+  // Date invio
+  dataUltimoInvio    DateTime?
+  dataProssimoInvio  DateTime? // Per newsletter ricorrenti
+
+  // AI Features
+  aiGenerato         Boolean  @default(false) // Se generata dall'AI
+  aiPromptUsato      String?  // Prompt usato per generazione
+  aiAnalisiEvento    String?  @default("{}") // JSON con analisi AI dell'evento promozionale
+  aiSuggerimenti     String?  @default("[]") // Array JSON di suggerimenti AI
+
+  // Alert AI (per notificare admin quando è il momento di inviare)
+  aiAlertInviato     Boolean  @default(false)
+  aiAlertData        DateTime?
+
+  // Chi ha creato la newsletter
+  createdById        String
+
+  // Azienda (isolamento dati)
+  companyId          String
+
+  // Log invii
+  invii              NewsletterInvio[]
+
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  @@index([companyId])
+  @@index([createdById])
+  @@index([stato])
+  @@index([tipoProgrammazione])
+  @@index([dataProgrammata])
+  @@index([eventoPromozionale])
+  @@index([isRicorrente])
+}
+
+// Log degli invii newsletter
+model NewsletterInvio {
+  id            String   @id @default(uuid())
+
+  // Newsletter di riferimento
+  newsletterId  String
+  newsletter    Newsletter @relation(fields: [newsletterId], references: [id], onDelete: Cascade)
+
+  // Informazioni invio
+  dataInvio     DateTime @default(now())
+  stato         String   @default("in_coda") // 'in_coda', 'inviato', 'fallito', 'rimbalzato'
+
+  // Destinatario
+  emailDestinatario String
+  nomeDestinatario  String?
+
+  // Tracking (future)
+  aperto        Boolean  @default(false)
+  dataApertura  DateTime?
+  clickCount    Int      @default(0)
+
+  // Errori
+  errore        String?  // Messaggio di errore se fallito
+
+  @@index([newsletterId])
+  @@index([emailDestinatario])
+  @@index([stato])
+  @@index([dataInvio])
 }

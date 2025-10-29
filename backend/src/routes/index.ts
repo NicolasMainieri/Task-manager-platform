@@ -29,6 +29,34 @@ import companyController from "../controllers/companyController";
 import noteRoutes from "./note.routes";
 // AI Routes
 import aiRoutes from "./ai.routes";
+// Rewards
+import rewardRoutes from "./rewards.routes";
+// Chat
+import chatRoutes from "./chat.routes";
+// Direct Messages
+import directMessagesRoutes from "./directMessages.routes";
+// Brain AI
+import brainRoutes from "./brain.routes";
+// Projects
+import projectRoutes from "./project.routes";
+// Analytics routes
+import analyticsRoutes from "./analytics.routes";
+// Contacts
+import contactsRoutes from "./contacts.routes";
+// Documents (File uploads for projects)
+import documentRoutes from "./document.routes";
+// Folders (Organize documents)
+import folderRoutes from "./folder.routes";
+// CRM (Custom CRM system)
+import crmRoutes from "./crm.routes";
+// Penalty & Bonus system
+import penaltyRoutes from "./penalty.routes";
+// Debug routes (development only)
+import debugRoutes from "./debug.routes";
+// Preventivi (Quote generation with AI)
+import preventivoRoutes from "./preventivo.routes";
+// Newsletter (Email newsletter system with AI)
+import newsletterRoutes from "./newsletter.routes";
 // Ticket Categories & Role Change Requests
 import ticketCategoryController from "../controllers/ticketCategoryController";
 import roleChangeRequestController from "../controllers/roleChangeRequestController";
@@ -127,6 +155,7 @@ router.post("/tasks/:taskId/subtasks/:subtaskId/reorder", authenticate, subtaskC
 // Work Sessions (Timer per subtasks)
 router.get("/work-sessions/active", authenticate, workSessionController.getActiveSession);
 router.get("/work-sessions", authenticate, workSessionController.getWorkSessions);
+router.post("/work-sessions/force-stop-all", authenticate, workSessionController.forceStopAllSessions);
 router.post("/subtasks/:subtaskId/work-sessions/start", authenticate, workSessionController.startWorkSession);
 router.put("/work-sessions/:sessionId/pause", authenticate, workSessionController.pauseWorkSession);
 router.put("/work-sessions/:sessionId/resume", authenticate, workSessionController.resumeWorkSession);
@@ -155,15 +184,8 @@ router.put("/tickets/:id/take", authenticate, ticketController.takeTicket);
 router.delete("/tickets/:id", authenticate, ticketController.deleteTicket);
 router.post("/tickets/:id/risposte", authenticate, ticketController.addRisposta);
 
-// Analytics
-router.get("/analytics", authenticate, analyticsController.getAnalytics);
-router.get("/analytics/dashboard-stats", authenticate, analyticsController.getDashboardStats);
-router.get("/analytics/top-performers", authenticate, analyticsController.getLeaderboard);
-router.get("/analytics/upcoming-tasks", authenticate, analyticsController.getAnalytics);
-router.get("/analytics/top-scheduled-rooms", authenticate, analyticsController.getAnalytics);
-router.get("/analytics/export", authenticate, analyticsController.exportReport);
-router.get("/analytics/my-stats", authenticate, analyticsController.getMyStats);
-router.get("/analytics/weekly-progress", authenticate, analyticsController.getWeeklyProgress);
+// Analytics - use dedicated router first
+router.use("/analytics", analyticsRoutes);
 
 // Calendar
 router.get("/calendar/my-events", authenticate, calendarController.getEvents);
@@ -229,6 +251,7 @@ router.delete("/integrations/email/imap-pop3/:accountId", authenticate, imapEmai
 router.post("/video/rooms", authenticate, videoCallController.createRoom);
 router.get("/video-rooms/my-upcoming", authenticate, videoCallController.getMyUpcomingCalls);
 router.get("/video/rooms", authenticate, videoCallController.getAllRooms);
+router.get("/video-rooms", authenticate, videoCallController.getAllRooms); // Alias for getAllRooms
 router.get("/video/rooms/:roomId", authenticate, videoCallController.getRoom);
 router.put("/video/rooms/:roomId", authenticate, videoCallController.updateRoom);
 router.delete("/video/rooms/:roomId", authenticate, videoCallController.deleteRoom);
@@ -244,6 +267,45 @@ router.use("/notes", noteRoutes);
 // AI Features
 router.use("/ai", aiRoutes);
 
-console.log('🔧 Router caricato con', router.stack.length, 'route');
+// Rewards (Prize system)
+router.use("/rewards", rewardRoutes);
+
+// Chat (Company chat)
+router.use("/chat", chatRoutes);
+
+// Direct Messages (1-to-1 chat)
+router.use("/direct-messages", directMessagesRoutes);
+
+// Brain AI (Multi-model AI assistant)
+router.use("/ai/brain", brainRoutes);
+
+// Projects (Projects management system)
+router.use("/projects", projectRoutes);
+
+// Contacts (Global contacts system)
+router.use("/contacts", contactsRoutes);
+
+// Documents (File uploads for projects)
+router.use("/documents", documentRoutes);
+
+// Folders (Organize documents)
+router.use("/folders", folderRoutes);
+
+// CRM (Custom CRM system)
+router.use("/crm", crmRoutes);
+
+// Penalty & Bonus system
+router.use("/penalties", penaltyRoutes);
+
+// Debug routes (development only)
+router.use("/debug", debugRoutes);
+
+// Preventivi (Quote generation with AI)
+router.use("/preventivi", preventivoRoutes);
+
+// Newsletter (Email newsletter system with AI)
+router.use("/newsletters", newsletterRoutes);
+
+console.log('🔧 Router caricato con', router.stack.length, 'route'); // v2
 
 export default router;

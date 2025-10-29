@@ -12,9 +12,20 @@ import Settings from './Settings';
 import EmployeeDashboardHome from '../components/EmployeeDashboardHome';
 import NotesComplete from './NotesComplete';
 import TicketManagement from '../components/TicketManagement';
+import EmployeeRewards from '../components/EmployeeRewards';
+import ChatWithTabs from '../components/ChatWithTabs';
+import Contacts from '../components/Contacts';
+import BrainAI from '../components/BrainAI';
 import ChatbotWidget from '../components/ChatbotWidget';
+import NotificationBadge from '../components/NotificationBadge';
+import { useNotificationCounts } from '../hooks/useNotificationCounts';
 import TutorialOverlay from '../components/TutorialOverlay';
 import { employeeTutorialSteps } from '../data/employeeTutorialSteps';
+import ProjectsPage from './ProjectsPage';
+import Drive from './Drive';
+import CRMPage from './CRMPage';
+import PreventiviPage from './PreventiviPage';
+import NewsletterPage from './NewsletterPage';
 import type { ViewType as NotesViewType, NotesCounts } from './NotesComplete';
 import {
   LayoutDashboard,
@@ -54,7 +65,13 @@ import {
   Loader2,
   AlertCircle,
   HelpCircle,
-  Inbox
+  Inbox,
+  Gift,
+  Brain,
+  FolderOpen,
+  Users,
+  HardDrive,
+  Database
 } from 'lucide-react';
 
 interface Subtask {
@@ -162,6 +179,8 @@ const DashboardComplete = () => {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [activeView, setActiveView] = useState('dashboard');
   const [tasks, setTasks] = useState<Task[]>([]);
+  const [taskFilter, setTaskFilter] = useState<'all' | 'todo' | 'in_progress' | 'completed'>('all');
+  const { counts: notificationCounts } = useNotificationCounts();
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
   const [stats, setStats] = useState({
     totali: 0,
@@ -323,17 +342,24 @@ const DashboardComplete = () => {
 
   const fetchNotifications = async () => {
     try {
+      console.log('[Notifications] Fetching notifications...');
       const response = await fetch('http://localhost:4000/api/notifications', {
         headers: { 'Authorization': `Bearer ${token}` }
       });
 
+      console.log('[Notifications] Response status:', response.status);
+
       if (response.ok) {
         const data = await response.json();
+        console.log('[Notifications] Data received:', data);
         setNotifications(data.notifications || []);
         setUnreadCount(data.unreadCount || 0);
+        console.log('[Notifications] Set notifications:', data.notifications?.length || 0, 'unread:', data.unreadCount);
+      } else {
+        console.error('[Notifications] Response not OK:', response.status, await response.text());
       }
     } catch (error) {
-      console.error('Errore nel caricamento delle notifiche:', error);
+      console.error('[Notifications] Errore nel caricamento delle notifiche:', error);
     }
   };
 
@@ -810,9 +836,18 @@ const DashboardComplete = () => {
 
   const menuItems = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
+    { id: 'brain', label: 'Brain', icon: Brain },
     { id: 'tasks', label: 'I Miei Task', icon: ListTodo },
+    { id: 'projects', label: 'Progetti', icon: FolderOpen },
+    { id: 'drive', label: 'Drive', icon: HardDrive },
+    { id: 'crm', label: 'CRM', icon: Database },
+    { id: 'preventivi', label: 'Preventivi', icon: FileText },
+    { id: 'newsletter', label: 'Newsletter', icon: Mail },
+    { id: 'chat', label: 'Chat', icon: MessageSquare },
+    { id: 'contacts', label: 'Contatti', icon: Users },
     { id: 'notes', label: 'Note', icon: FileText },
     { id: 'tickets', label: 'Ticket', icon: Ticket },
+    { id: 'rewards', label: 'Premi', icon: Gift },
     { id: 'videocall', label: 'Videochiamate', icon: Video },
     { id: 'calendar', label: 'Calendario', icon: Calendar },
     { id: 'email', label: 'Email', icon: Mail },
@@ -936,12 +971,60 @@ const DashboardComplete = () => {
                         : 'text-gray-400 hover:bg-white/5 hover:text-white'
                     }`}
                   >
-                    <Icon className="w-5 h-5 flex-shrink-0" />
+                    <div className="relative">
+                      <Icon className="w-5 h-5 flex-shrink-0" />
+                      {!sidebarOpen && (
+                        <>
+                          {item.id === 'tasks' && <NotificationBadge count={notificationCounts.tasks} />}
+                          {item.id === 'projects' && <NotificationBadge count={notificationCounts.projects} />}
+                          {item.id === 'chat' && <NotificationBadge count={notificationCounts.chat + notificationCounts.directMessages} />}
+                          {item.id === 'tickets' && <NotificationBadge count={notificationCounts.tickets} />}
+                          {item.id === 'rewards' && <NotificationBadge count={notificationCounts.rewards} />}
+                          {item.id === 'calendar' && <NotificationBadge count={notificationCounts.calendar} />}
+                          {item.id === 'email' && <NotificationBadge count={notificationCounts.email} />}
+                        </>
+                      )}
+                    </div>
                     {sidebarOpen && (
                       <>
                         <span className="font-medium flex-1 text-left">{item.label}</span>
+                        {item.id === 'tasks' && notificationCounts.tasks > 0 && (
+                          <span className="text-xs bg-red-500 text-white font-bold px-2 py-0.5 rounded-full">
+                            {notificationCounts.tasks}
+                          </span>
+                        )}
+                        {item.id === 'projects' && notificationCounts.projects > 0 && (
+                          <span className="text-xs bg-orange-500 text-white font-bold px-2 py-0.5 rounded-full">
+                            {notificationCounts.projects}
+                          </span>
+                        )}
+                        {item.id === 'chat' && (notificationCounts.chat + notificationCounts.directMessages) > 0 && (
+                          <span className="text-xs bg-red-500 text-white font-bold px-2 py-0.5 rounded-full">
+                            {notificationCounts.chat + notificationCounts.directMessages}
+                          </span>
+                        )}
+                        {item.id === 'tickets' && notificationCounts.tickets > 0 && (
+                          <span className="text-xs bg-red-500 text-white font-bold px-2 py-0.5 rounded-full">
+                            {notificationCounts.tickets}
+                          </span>
+                        )}
+                        {item.id === 'rewards' && notificationCounts.rewards > 0 && (
+                          <span className="text-xs bg-red-500 text-white font-bold px-2 py-0.5 rounded-full">
+                            {notificationCounts.rewards}
+                          </span>
+                        )}
+                        {item.id === 'calendar' && notificationCounts.calendar > 0 && (
+                          <span className="text-xs bg-blue-500 text-white font-bold px-2 py-0.5 rounded-full">
+                            {notificationCounts.calendar}
+                          </span>
+                        )}
+                        {item.id === 'email' && notificationCounts.email > 0 && (
+                          <span className="text-xs bg-red-500 text-white font-bold px-2 py-0.5 rounded-full">
+                            {notificationCounts.email}
+                          </span>
+                        )}
                         {isNotes && notesCounts.total > 0 && (
-                          <span className="text-xs bg-indigo-500/30 px-2 py-0.5 rounded-full">
+                          <span className="text-xs bg-indigo-600/30 px-2 py-0.5 rounded-full">
                             {notesCounts.total}
                           </span>
                         )}
@@ -962,14 +1045,14 @@ const DashboardComplete = () => {
                         onClick={() => setNotesView('text')}
                         className={`w-full flex items-center gap-3 px-4 py-2 rounded-lg transition-all ${
                           notesView === 'text'
-                            ? 'bg-indigo-500/20 text-indigo-300'
+                            ? 'bg-indigo-600/20 text-indigo-300'
                             : 'text-gray-500 hover:bg-white/5 hover:text-gray-300'
                         }`}
                       >
                         <FileText className="w-4 h-4 flex-shrink-0" />
                         <span className="text-sm flex-1 text-left">Fogli di Testo</span>
                         {notesCounts.text > 0 && (
-                          <span className="text-xs bg-indigo-500/20 px-1.5 py-0.5 rounded">
+                          <span className="text-xs bg-indigo-600/20 px-1.5 py-0.5 rounded">
                             {notesCounts.text}
                           </span>
                         )}
@@ -978,14 +1061,14 @@ const DashboardComplete = () => {
                         onClick={() => setNotesView('spreadsheet')}
                         className={`w-full flex items-center gap-3 px-4 py-2 rounded-lg transition-all ${
                           notesView === 'spreadsheet'
-                            ? 'bg-indigo-500/20 text-indigo-300'
+                            ? 'bg-indigo-600/20 text-indigo-300'
                             : 'text-gray-500 hover:bg-white/5 hover:text-gray-300'
                         }`}
                       >
                         <Table className="w-4 h-4 flex-shrink-0" />
                         <span className="text-sm flex-1 text-left">Fogli di Calcolo</span>
                         {notesCounts.spreadsheet > 0 && (
-                          <span className="text-xs bg-indigo-500/20 px-1.5 py-0.5 rounded">
+                          <span className="text-xs bg-indigo-600/20 px-1.5 py-0.5 rounded">
                             {notesCounts.spreadsheet}
                           </span>
                         )}
@@ -994,14 +1077,14 @@ const DashboardComplete = () => {
                         onClick={() => setNotesView('whiteboard')}
                         className={`w-full flex items-center gap-3 px-4 py-2 rounded-lg transition-all ${
                           notesView === 'whiteboard'
-                            ? 'bg-indigo-500/20 text-indigo-300'
+                            ? 'bg-indigo-600/20 text-indigo-300'
                             : 'text-gray-500 hover:bg-white/5 hover:text-gray-300'
                         }`}
                       >
                         <Palette className="w-4 h-4 flex-shrink-0" />
                         <span className="text-sm flex-1 text-left">Lavagne</span>
                         {notesCounts.whiteboard > 0 && (
-                          <span className="text-xs bg-indigo-500/20 px-1.5 py-0.5 rounded">
+                          <span className="text-xs bg-indigo-600/20 px-1.5 py-0.5 rounded">
                             {notesCounts.whiteboard}
                           </span>
                         )}
@@ -1053,7 +1136,7 @@ const DashboardComplete = () => {
                         onClick={() => setEmailView('inbox')}
                         className={`w-full flex items-center gap-3 px-4 py-2 rounded-lg transition-all ${
                           emailView === 'inbox'
-                            ? 'bg-indigo-500/20 text-indigo-300'
+                            ? 'bg-indigo-600/20 text-indigo-300'
                             : 'text-gray-400 hover:bg-white/5 hover:text-white'
                         }`}
                       >
@@ -1135,7 +1218,7 @@ const DashboardComplete = () => {
           {/* Toggle Button */}
           <button
             onClick={() => setSidebarOpen(!sidebarOpen)}
-            className="absolute -right-3 top-20 w-6 h-6 bg-indigo-500 rounded-full flex items-center justify-center text-white hover:bg-indigo-600 transition-colors"
+            className="absolute -right-3 top-20 w-6 h-6 bg-indigo-600 rounded-full flex items-center justify-center text-white hover:bg-indigo-600-light transition-colors"
           >
             {sidebarOpen ? <X className="w-4 h-4" /> : <Menu className="w-4 h-4" />}
           </button>
@@ -1181,7 +1264,7 @@ const DashboardComplete = () => {
                         <div
                           key={notification.id}
                           className={`p-4 hover:bg-slate-700/30 transition cursor-pointer ${
-                            !notification.letta ? 'bg-indigo-500/5' : ''
+                            !notification.letta ? 'bg-indigo-600/5' : ''
                           }`}
                           onClick={() => {
                             handleMarkAsRead(notification.id);
@@ -1193,7 +1276,7 @@ const DashboardComplete = () => {
                         >
                           <div className="flex items-start gap-3">
                             <div className={`w-2 h-2 rounded-full mt-2 flex-shrink-0 ${
-                              !notification.letta ? 'bg-indigo-500' : 'bg-gray-600'
+                              !notification.letta ? 'bg-indigo-600' : 'bg-gray-600'
                             }`}></div>
                             <div className="flex-1">
                               <h4 className="text-white font-semibold text-sm mb-1">
@@ -1231,6 +1314,13 @@ const DashboardComplete = () => {
               {activeView === 'dashboard' && (
                 <div data-tutorial="employee-dashboard">
                   <EmployeeDashboardHome user={user} onNavigate={setActiveView} />
+                </div>
+              )}
+
+              {/* Brain AI View */}
+              {activeView === 'brain' && (
+                <div>
+                  <BrainAI />
                 </div>
               )}
 
@@ -1320,7 +1410,7 @@ const DashboardComplete = () => {
 
                           {/* Task Prioritari */}
                           {tasksAnalysis.task_prioritari && tasksAnalysis.task_prioritari.length > 0 && (
-                            <div className="bg-indigo-500/10 border border-indigo-500/30 rounded-xl p-4 mb-4">
+                            <div className="bg-indigo-600/10 border border-indigo-500/30 rounded-xl p-4 mb-4">
                               <h5 className="text-indigo-400 font-semibold text-sm mb-3">🎯 Task Prioritari</h5>
                               <div className="space-y-2">
                                 {tasksAnalysis.task_prioritari.map((task: any, i: number) => (
@@ -1377,9 +1467,66 @@ const DashboardComplete = () => {
                       </div>
                     </div>
                   )}
-                  {tasks.length > 0 ? (
+
+                  {/* Task Filter Tabs */}
+                  <div className="flex items-center gap-3 mb-6 border-b border-indigo-500/20 pb-4">
+                    <button
+                      onClick={() => setTaskFilter('all')}
+                      className={`px-6 py-2 rounded-lg font-semibold transition-all ${
+                        taskFilter === 'all'
+                          ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-500/50'
+                          : 'bg-slate-800/50 text-gray-400 hover:text-white hover:bg-slate-700/50'
+                      }`}
+                    >
+                      Tutti ({tasks.length})
+                    </button>
+                    <button
+                      onClick={() => setTaskFilter('todo')}
+                      className={`px-6 py-2 rounded-lg font-semibold transition-all ${
+                        taskFilter === 'todo'
+                          ? 'bg-yellow-500 text-white shadow-lg shadow-yellow-500/50'
+                          : 'bg-slate-800/50 text-gray-400 hover:text-white hover:bg-slate-700/50'
+                      }`}
+                    >
+                      Da Fare ({tasks.filter(t => t.stato === 'todo' || t.stato === 'da_fare').length})
+                    </button>
+                    <button
+                      onClick={() => setTaskFilter('in_progress')}
+                      className={`px-6 py-2 rounded-lg font-semibold transition-all ${
+                        taskFilter === 'in_progress'
+                          ? 'bg-orange-500 text-white shadow-lg shadow-orange-500/50'
+                          : 'bg-slate-800/50 text-gray-400 hover:text-white hover:bg-slate-700/50'
+                      }`}
+                    >
+                      In Corso ({tasks.filter(t => t.stato === 'in_corso' || t.stato === 'in_progress').length})
+                    </button>
+                    <button
+                      onClick={() => setTaskFilter('completed')}
+                      className={`px-6 py-2 rounded-lg font-semibold transition-all ${
+                        taskFilter === 'completed'
+                          ? 'bg-green-500 text-white shadow-lg shadow-green-500/50'
+                          : 'bg-slate-800/50 text-gray-400 hover:text-white hover:bg-slate-700/50'
+                      }`}
+                    >
+                      Completati ({tasks.filter(t => t.stato === 'completato' || t.stato === 'completata').length})
+                    </button>
+                  </div>
+
+                  {tasks.filter(task => {
+                    if (taskFilter === 'all') return true;
+                    if (taskFilter === 'todo') return task.stato === 'todo' || task.stato === 'da_fare';
+                    if (taskFilter === 'in_progress') return task.stato === 'in_corso' || task.stato === 'in_progress';
+                    if (taskFilter === 'completed') return task.stato === 'completato' || task.stato === 'completata';
+                    return true;
+                  }).length > 0 ? (
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                      {tasks.map((task) => (
+                      {tasks.filter(task => {
+                        if (taskFilter === 'all') return true;
+                        if (taskFilter === 'todo') return task.stato === 'todo' || task.stato === 'da_fare';
+                        if (taskFilter === 'in_progress') return task.stato === 'in_corso' || task.stato === 'in_progress';
+                        if (taskFilter === 'completed') return task.stato === 'completato' || task.stato === 'completata';
+                        return true;
+                      }).map((task) => (
                         <div
                           key={task.id}
                           onClick={async () => {
@@ -1430,8 +1577,18 @@ const DashboardComplete = () => {
                   ) : (
                     <div className="bg-slate-800/50 backdrop-blur-sm border border-indigo-500/20 rounded-2xl p-12 text-center">
                       <ListTodo className="w-16 h-16 text-gray-600 mx-auto mb-4" />
-                      <h3 className="text-xl font-bold text-white mb-2">Nessun task</h3>
-                      <p className="text-gray-400">Non hai task assegnati al momento</p>
+                      <h3 className="text-xl font-bold text-white mb-2">
+                        {taskFilter === 'all' && 'Nessun task'}
+                        {taskFilter === 'todo' && 'Nessun task da fare'}
+                        {taskFilter === 'in_progress' && 'Nessun task in corso'}
+                        {taskFilter === 'completed' && 'Nessun task completato'}
+                      </h3>
+                      <p className="text-gray-400">
+                        {taskFilter === 'all' && 'Non hai task assegnati al momento'}
+                        {taskFilter === 'todo' && 'Tutti i task sono in corso o completati'}
+                        {taskFilter === 'in_progress' && 'Nessun task è attualmente in lavorazione'}
+                        {taskFilter === 'completed' && 'Non hai ancora completato nessun task'}
+                      </p>
                     </div>
                   )}
                 </div>
@@ -1600,7 +1757,7 @@ const DashboardComplete = () => {
                             key={entry.id}
                             className={`p-4 rounded-xl border transition-all ${
                               isCurrentUser
-                                ? 'bg-indigo-500/20 border-indigo-500/50'
+                                ? 'bg-indigo-600/20 border-indigo-500/50'
                                 : 'bg-slate-900/50 border-slate-700'
                             }`}
                           >
@@ -1639,6 +1796,58 @@ const DashboardComplete = () => {
 
               {/* Tickets View */}
               {activeView === 'tickets' && <TicketManagement />}
+
+              {/* Rewards View */}
+              {activeView === 'rewards' && <EmployeeRewards />}
+
+              {/* Chat View (includes Company Chat and Direct Messages) */}
+              {activeView === 'chat' && (
+                <div className="h-full">
+                  <ChatWithTabs />
+                </div>
+              )}
+
+              {/* Contacts View */}
+              {activeView === 'contacts' && (
+                <div className="h-full">
+                  <Contacts />
+                </div>
+              )}
+
+              {/* Projects View */}
+              {activeView === 'projects' && (
+                <div className="-m-8">
+                  <ProjectsPage />
+                </div>
+              )}
+
+              {/* Drive View */}
+              {activeView === 'drive' && (
+                <div className="-m-8">
+                  <Drive />
+                </div>
+              )}
+
+              {/* CRM View */}
+              {activeView === 'crm' && (
+                <div className="-m-8">
+                  <CRMPage />
+                </div>
+              )}
+
+              {/* Preventivi View */}
+              {activeView === 'preventivi' && (
+                <div className="-m-8">
+                  <PreventiviPage />
+                </div>
+              )}
+
+              {/* Newsletter View */}
+              {activeView === 'newsletter' && (
+                <div className="-m-8">
+                  <NewsletterPage />
+                </div>
+              )}
 
               {/* Calendar View */}
               {activeView === 'calendar' && (
@@ -1746,23 +1955,67 @@ const DashboardComplete = () => {
 
                   {/* Calendar Integrations - External Services */}
                   <div className="mt-8 border-t border-indigo-500/20 pt-8">
-                    <h4 className="text-xl font-bold text-white mb-6">Integrazioni Esterne</h4>
-                    <div className="space-y-6">
-                      <div>
-                        <h5 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
-                          <span className="text-2xl">📅</span>
-                          Google Calendar
-                        </h5>
-                        <GoogleCalendarConnect />
-                      </div>
+                    <h4 className="text-2xl font-bold text-white mb-8 text-center">Sincronizza anche con</h4>
 
-                      <div>
-                        <h5 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
-                          <span className="text-2xl">📆</span>
-                          Outlook Calendar
-                        </h5>
-                        <OutlookCalendarConnect />
-                      </div>
+                    {/* Logo Row - Clickable */}
+                    <div className="flex items-center justify-center gap-6">
+                      <button
+                        onClick={() => {/* Trigger Google Calendar sync */}}
+                        className="flex flex-col items-center gap-3 bg-white rounded-2xl p-6 shadow-lg hover:shadow-2xl hover:scale-105 transition-all cursor-pointer group"
+                        title="Sincronizza Google Calendar"
+                      >
+                        <svg viewBox="0 0 24 24" className="w-16 h-16">
+                          <path fill="#1A73E8" d="M5.243 4.5h13.514c.395 0 .743.322.743.717v13.566a.73.73 0 0 1-.743.717H5.243a.73.73 0 0 1-.743-.717V5.217c0-.395.348-.717.743-.717z"/>
+                          <path fill="#FFF" d="M19.5 7.5v-2c0-.55-.45-1-1-1h-2v2h2v2h1zM7.5 17.5h-2v-2h-2v2c0 .55.45 1 1 1h2v-1zM5.5 6.5h2v-2h-2c-.55 0-1 .45-1 1v2h1v-1z"/>
+                          <path fill="#EA4335" d="M7.5 4.5h2v2h-2z"/>
+                          <path fill="#FBBC04" d="M4.5 6.5h2v2h-2z"/>
+                          <path fill="#34A853" d="M4.5 17.5h2v2h-2z"/>
+                          <path fill="#188038" d="M7.5 17.5h2v2h-2z"/>
+                          <path fill="#1967D2" d="M7.5 4.5h2v2h-2z"/>
+                          <path fill="#4285F4" d="M17.5 4.5h2v2h-2z"/>
+                          <path fill="#4285F4" d="M17.5 6.5h2v2h-2z"/>
+                          <rect fill="#4285F4" x="8" y="8" width="8" height="8" rx="1"/>
+                          <path fill="#FFF" d="M12 9.5v3.793l2.854 1.646-.5.867L11 13.5V9.5h1z"/>
+                        </svg>
+                        <span className="text-base font-semibold text-gray-800 group-hover:text-indigo-600 transition">Google Calendar</span>
+                      </button>
+
+                      <button
+                        onClick={() => {/* Trigger Outlook Calendar sync */}}
+                        className="flex flex-col items-center gap-3 bg-white rounded-2xl p-6 shadow-lg hover:shadow-2xl hover:scale-105 transition-all cursor-pointer group"
+                        title="Sincronizza Outlook Calendar"
+                      >
+                        <svg viewBox="0 0 24 24" className="w-16 h-16">
+                          <path fill="#0078D4" d="M24 7.875v8.25A2.626 2.626 0 0 1 21.375 18.75h-7.312L14.25 12l-.187-6.75h7.312A2.626 2.626 0 0 1 24 7.875z"/>
+                          <path fill="#0364B8" d="M21.375 5.25h-7.312L14.25 12l-.187 6.75h7.312c.72 0 1.339-.288 1.8-.75L24 7.875a2.627 2.627 0 0 0-2.625-2.625z"/>
+                          <path fill="#0078D4" d="M14.063 5.25L8.25 1.5H3.375A2.626 2.626 0 0 0 .75 4.125v15.75A2.626 2.626 0 0 0 3.375 22.5H8.25l5.813-3.75V12z"/>
+                          <path fill="#28A8EA" d="M14.063 5.25H8.25v13.5h5.813V12z"/>
+                          <path fill="#0078D4" d="M8.25 1.5v4.5H3.375c-.72 0-1.339.288-1.8.75L.75 4.125A2.626 2.626 0 0 1 3.375 1.5z"/>
+                          <path fill="#0364B8" d="M8.25 18.75v3.75H3.375a2.626 2.626 0 0 1-2.625-2.625V17.25l.825-1.5c.461.462 1.08.75 1.8.75z"/>
+                          <path fill="#50D9FF" d="M8.25 5.25v13.5H3.375A2.626 2.626 0 0 1 .75 16.125V7.875A2.626 2.626 0 0 1 3.375 5.25z"/>
+                          <path fill="#FFF" d="M5.625 10.5h4.5v1.5h-4.5zm0 3h4.5V15h-4.5z"/>
+                        </svg>
+                        <span className="text-base font-semibold text-gray-800 group-hover:text-indigo-600 transition">Outlook Calendar</span>
+                      </button>
+
+                      <button
+                        onClick={() => {/* Trigger Apple Calendar sync */}}
+                        className="flex flex-col items-center gap-3 bg-white rounded-2xl p-6 shadow-lg hover:shadow-2xl hover:scale-105 transition-all cursor-pointer group"
+                        title="Sincronizza Apple Calendar"
+                      >
+                        <svg viewBox="0 0 24 24" className="w-16 h-16">
+                          <defs>
+                            <linearGradient id="apple-cal-grad-dash" x1="0%" y1="0%" x2="0%" y2="100%">
+                              <stop offset="0%" style={{ stopColor: '#FF3B30', stopOpacity: 1 }} />
+                              <stop offset="100%" style={{ stopColor: '#FF453A', stopOpacity: 1 }} />
+                            </linearGradient>
+                          </defs>
+                          <rect x="3" y="4" width="18" height="18" rx="3" fill="url(#apple-cal-grad-dash)"/>
+                          <rect x="3" y="4" width="18" height="6" fill="#FF2D20"/>
+                          <text x="12" y="18" fontFamily="Arial, sans-serif" fontSize="11" fontWeight="bold" fill="white" textAnchor="middle">{new Date().getDate()}</text>
+                        </svg>
+                        <span className="text-base font-semibold text-gray-800 group-hover:text-indigo-600 transition">Apple Calendar</span>
+                      </button>
                     </div>
                   </div>
                 </div>
@@ -1771,33 +2024,62 @@ const DashboardComplete = () => {
               {/* Email View */}
               {activeView === 'email' && (
                 <div>
-                  <h3 className="text-2xl font-bold text-white mb-6">Email</h3>
+                  <h3 className="text-2xl font-bold text-white mb-8 text-center">Sincronizza anche con</h3>
 
-                  {/* Email Integrations */}
-                  <div className="mb-8 space-y-6">
-                    <div>
-                      <h4 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
-                        <span className="text-2xl">📧</span>
-                        Gmail
-                      </h4>
-                      <GmailConnect />
-                    </div>
+                  {/* Logo Row - Clickable */}
+                  <div className="flex items-center justify-center gap-6 mb-12">
+                    <button
+                      onClick={() => {/* Trigger Gmail sync */}}
+                      className="flex flex-col items-center gap-3 bg-white rounded-2xl p-6 shadow-lg hover:shadow-2xl hover:scale-105 transition-all cursor-pointer group"
+                      title="Sincronizza Gmail"
+                    >
+                      <svg viewBox="0 0 24 24" className="w-16 h-16">
+                        <path fill="#EA4335" d="M24 5.457v13.909c0 .904-.732 1.636-1.636 1.636h-3.819V11.73L12 16.64l-6.545-4.91v9.273H1.636A1.636 1.636 0 0 1 0 19.366V5.457c0-2.023 2.309-3.178 3.927-1.964L5.455 4.64 12 9.548l6.545-4.91 1.528-1.145C21.69 2.28 24 3.434 24 5.457z"/>
+                        <path fill="#FBBC05" d="M7.364 12.182L1.636 8.91V5.457c0-2.023 2.309-3.178 3.927-1.964L7.364 4.64"/>
+                        <path fill="#34A853" d="M16.636 12.182L22.364 8.91V5.457c0-2.023-2.309-3.178-3.927-1.964L16.636 4.64"/>
+                        <path fill="#C5221F" d="M7.364 12.182V21.09h9.272V12.182L12 16.64z"/>
+                      </svg>
+                      <span className="text-base font-semibold text-gray-800 group-hover:text-indigo-600 transition">Gmail</span>
+                    </button>
 
-                    <div>
-                      <h4 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
-                        <span className="text-2xl">📨</span>
-                        Outlook Email
-                      </h4>
-                      <OutlookEmailConnect />
-                    </div>
+                    <button
+                      onClick={() => {/* Trigger Outlook sync */}}
+                      className="flex flex-col items-center gap-3 bg-white rounded-2xl p-6 shadow-lg hover:shadow-2xl hover:scale-105 transition-all cursor-pointer group"
+                      title="Sincronizza Outlook"
+                    >
+                      <svg viewBox="0 0 24 24" className="w-16 h-16">
+                        <path fill="#0078D4" d="M24 7.875v8.25A2.626 2.626 0 0 1 21.375 18.75h-7.312L14.25 12l-.187-6.75h7.312A2.626 2.626 0 0 1 24 7.875z"/>
+                        <path fill="#0364B8" d="M21.375 5.25h-7.312L14.25 12l-.187 6.75h7.312c.72 0 1.339-.288 1.8-.75L24 7.875a2.627 2.627 0 0 0-2.625-2.625z"/>
+                        <path fill="#0078D4" d="M14.063 5.25L8.25 1.5H3.375A2.626 2.626 0 0 0 .75 4.125v15.75A2.626 2.626 0 0 0 3.375 22.5H8.25l5.813-3.75V12z"/>
+                        <path fill="#28A8EA" d="M14.063 5.25H8.25v13.5h5.813V12z"/>
+                        <path fill="#0078D4" d="M8.25 1.5v4.5H3.375c-.72 0-1.339.288-1.8.75L.75 4.125A2.626 2.626 0 0 1 3.375 1.5z"/>
+                        <path fill="#0364B8" d="M8.25 18.75v3.75H3.375a2.626 2.626 0 0 1-2.625-2.625V17.25l.825-1.5c.461.462 1.08.75 1.8.75z"/>
+                        <path fill="#14447D" d="M8.25 5.25v13.5H3.375A2.626 2.626 0 0 1 .75 16.125V7.875A2.626 2.626 0 0 1 3.375 5.25z"/>
+                        <path fill="#0078D4" opacity=".5" d="M13.875 5.25h-5.437v13.5h5.437c.419 0 .806-.104 1.156-.281V5.531a2.567 2.567 0 0 0-1.156-.281z"/>
+                        <path fill="#0078D4" opacity=".1" d="M13.313 6.375H8.25v11.25h5.063c.419 0 .806-.104 1.156-.281V6.656a2.567 2.567 0 0 0-1.156-.281z"/>
+                        <path fill="#0078D4" opacity=".2" d="M13.313 6.375H8.25v10.125h5.063c.419 0 .806-.104 1.156-.281V6.656a2.567 2.567 0 0 0-1.156-.281z"/>
+                        <path fill="#0078D4" opacity=".2" d="M12.75 6.375H8.25v10.125H12.75c.419 0 .806-.104 1.156-.281V6.656a2.567 2.567 0 0 0-1.156-.281z"/>
+                        <path fill="#0078D4" opacity=".3" d="M12.75 6.375H8.25V16.5H12.75c.419 0 .806-.104 1.156-.281V6.656a2.567 2.567 0 0 0-1.156-.281z"/>
+                        <radialGradient id="outlook-email-grad" cx="5.332" cy="12.132" r="10.114" gradientUnits="userSpaceOnUse">
+                          <stop offset="0" stopColor="#1784d8"/>
+                          <stop offset="1" stopColor="#0864c5"/>
+                        </radialGradient>
+                        <path fill="url(#outlook-email-grad)" d="M3.469 7.688A3.844 3.844 0 0 1 7.313 3.844a3.844 3.844 0 0 1 3.843 3.844 3.844 3.844 0 0 1-3.843 3.843 3.844 3.844 0 0 1-3.844-3.843zm1.406 0a2.438 2.438 0 0 0 4.875 0 2.438 2.438 0 0 0-4.875 0z" transform="translate(.656 4.313)"/>
+                      </svg>
+                      <span className="text-base font-semibold text-gray-800 group-hover:text-indigo-600 transition">Outlook</span>
+                    </button>
 
-                    <div>
-                      <h4 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
-                        <span className="text-2xl">⚙️</span>
-                        IMAP / POP3
-                      </h4>
-                      <ImapPop3Config />
-                    </div>
+                    <button
+                      onClick={() => {/* Trigger POP/IMAP config */}}
+                      className="flex flex-col items-center gap-3 bg-slate-700 rounded-2xl p-6 shadow-lg hover:shadow-2xl hover:scale-105 transition-all cursor-pointer group"
+                      title="Configura POP/IMAP"
+                    >
+                      <svg viewBox="0 0 24 24" className="w-14 h-14" fill="none" stroke="white" strokeWidth="2">
+                        <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
+                        <polyline points="22,6 12,13 2,6"/>
+                      </svg>
+                      <span className="text-sm font-semibold text-white group-hover:text-gray-300 transition">POP/IMAP</span>
+                    </button>
                   </div>
 
                   {/* Email List - Coming soon */}
@@ -1895,7 +2177,7 @@ const DashboardComplete = () => {
                       key={risposta.id}
                       className={`p-4 rounded-xl ${
                         risposta.isAdmin
-                          ? 'bg-indigo-500/10 border-l-4 border-indigo-500'
+                          ? 'bg-indigo-600/10 border-l-4 border-indigo-500'
                           : 'bg-slate-900/50 border-l-4 border-green-500'
                       }`}
                     >
@@ -2098,7 +2380,7 @@ const DashboardComplete = () => {
 
             {/* Ticket Info */}
             <div className="mb-6 border-t border-indigo-500/20 pt-6">
-              <div className="flex items-center gap-2 p-4 bg-indigo-500/10 rounded-xl border border-indigo-500/20">
+              <div className="flex items-center gap-2 p-4 bg-indigo-600/10 rounded-xl border border-indigo-500/20">
                 <Ticket className="w-5 h-5 text-indigo-400" />
                 <div>
                   <p className="text-white font-semibold text-sm">Vuoi aprire un ticket per questo task?</p>

@@ -24,6 +24,8 @@ const TodayTasksList: React.FC = () => {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
   const [expandedTasks, setExpandedTasks] = useState<Set<string>>(new Set());
+  const [newSubtaskTitles, setNewSubtaskTitles] = useState<{ [taskId: string]: string }>({});
+  const [addingSubtask, setAddingSubtask] = useState<{ [taskId: string]: boolean }>({});
   const token = localStorage.getItem('token');
 
   useEffect(() => {
@@ -63,6 +65,45 @@ const TodayTasksList: React.FC = () => {
       }
       return newSet;
     });
+  };
+
+  const handleAddSubtask = async (taskId: string) => {
+    const titolo = newSubtaskTitles[taskId]?.trim();
+    if (!titolo) return;
+
+    setAddingSubtask(prev => ({ ...prev, [taskId]: true }));
+    try {
+      await axios.post(
+        `${API_URL}/tasks/${taskId}/subtasks`,
+        { titolo },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+
+      // Reset input
+      setNewSubtaskTitles(prev => ({ ...prev, [taskId]: '' }));
+
+      // Reload tasks
+      await loadTodayTasks();
+
+      // Keep task expanded
+      setExpandedTasks(prev => new Set(prev).add(taskId));
+    } catch (error) {
+      console.error('Errore creazione subtask:', error);
+      alert('Errore durante la creazione della subtask');
+    } finally {
+      setAddingSubtask(prev => ({ ...prev, [taskId]: false }));
+    }
+  };
+
+  const handleSubtaskInputChange = (taskId: string, value: string) => {
+    setNewSubtaskTitles(prev => ({ ...prev, [taskId]: value }));
+  };
+
+  const handleSubtaskKeyPress = (e: React.KeyboardEvent, taskId: string) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      handleAddSubtask(taskId);
+    }
   };
 
   const getPriorityColor = (priorita: string) => {
@@ -174,7 +215,7 @@ const TodayTasksList: React.FC = () => {
               {/* Task Header */}
               <div
                 className="p-4 cursor-pointer"
-                onClick={() => hasSubtasks && toggleTaskExpansion(task.id)}
+                onClick={() => toggleTaskExpansion(task.id)}
               >
                 <div className="flex items-start justify-between gap-4">
                   {/* Info Task */}
@@ -264,40 +305,66 @@ const TodayTasksList: React.FC = () => {
                     )}
 
                     {/* Subtasks count */}
-                    {hasSubtasks && (
-                      <div className="flex items-center gap-2 text-sm text-gray-400">
+                    <div className="flex items-center gap-2 text-sm text-gray-400">
+                      {hasSubtasks ? (
                         <span>
                           {task.completedSubtasks}/{task.totalSubtasks} subtask
                         </span>
-                        {isExpanded ? (
-                          <ChevronUp className="w-4 h-4" />
-                        ) : (
-                          <ChevronDown className="w-4 h-4" />
-                        )}
-                      </div>
-                    )}
-
-                    {!hasSubtasks && (
-                      <div className="flex items-center gap-2 text-sm text-amber-400">
-                        <AlertCircle className="w-4 h-4" />
-                        <span>Nessuna subtask</span>
-                      </div>
-                    )}
+                      ) : (
+                        <span className="text-amber-400 flex items-center gap-1">
+                          <AlertCircle className="w-4 h-4" />
+                          Nessuna subtask
+                        </span>
+                      )}
+                      {isExpanded ? (
+                        <ChevronUp className="w-4 h-4" />
+                      ) : (
+                        <ChevronDown className="w-4 h-4" />
+                      )}
+                    </div>
                   </div>
                 </div>
               </div>
 
               {/* Subtasks List */}
-              {isExpanded && hasSubtasks && (
-                <div className="px-4 pb-4 space-y-2 border-t border-indigo-500/20">
+              {isExpanded && (
+                <div
+                  className="px-4 pb-4 space-y-2 border-t border-indigo-500/20"
+                  onClick={(e) => e.stopPropagation()}
+                >
                   <div className="pt-4 space-y-2">
-                    {task.subtasks.map((subtask) => (
+                    {hasSubtasks && task.subtasks.map((subtask) => (
                       <SubtaskItemWithTimer
                         key={subtask.id}
                         subtask={subtask}
                         onUpdate={loadTodayTasks}
                       />
                     ))}
+
+                    {/* Add Subtask Input */}
+                    <div className="flex items-center gap-2 mt-3">
+                      <input
+                        type="text"
+                        value={newSubtaskTitles[task.id] || ''}
+                        onChange={(e) => handleSubtaskInputChange(task.id, e.target.value)}
+                        onKeyPress={(e) => handleSubtaskKeyPress(e, task.id)}
+                        onClick={(e) => e.stopPropagation()}
+                        placeholder="Aggiungi una subtask..."
+                        disabled={addingSubtask[task.id]}
+                        className="flex-1 px-4 py-2 bg-slate-700/50 border border-indigo-500/30 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-indigo-500 transition-colors disabled:opacity-50"
+                      />
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleAddSubtask(task.id);
+                        }}
+                        disabled={!newSubtaskTitles[task.id]?.trim() || addingSubtask[task.id]}
+                        className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white font-semibold rounded-lg transition-colors flex items-center gap-2"
+                      >
+                        <Plus className="w-4 h-4" />
+                        {addingSubtask[task.id] ? 'Aggiunta...' : 'Aggiungi'}
+                      </button>
+                    </div>
                   </div>
                 </div>
               )}

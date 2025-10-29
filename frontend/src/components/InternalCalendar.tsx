@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { Calendar as CalendarIcon, Plus, X, Edit, Trash2, Clock, MapPin, Users, ChevronLeft, ChevronRight } from 'lucide-react';
-
-const API_URL = 'http://localhost:4000/api';
+import ContactMentionInput from './ContactMentionInput';
+import API_URL from '../config/api';
 
 interface CalendarEvent {
   id: string;
@@ -45,6 +45,7 @@ const InternalCalendar: React.FC = () => {
     allDay: false,
     colore: '#3B82F6',
     reminderMinutes: 15,
+    contactIds: [] as string[],
   });
 
   const token = localStorage.getItem('token');
@@ -156,6 +157,7 @@ const InternalCalendar: React.FC = () => {
       allDay: false,
       colore: '#3B82F6',
       reminderMinutes: 15,
+      contactIds: [],
     });
     setSelectedEvent(null);
   };
@@ -163,6 +165,16 @@ const InternalCalendar: React.FC = () => {
   const openEventModal = (event?: CalendarEvent) => {
     if (event) {
       setSelectedEvent(event);
+      // Parse contactIds if stored as JSON string in the event
+      let contactIds: string[] = [];
+      try {
+        contactIds = typeof (event as any).contactIds === 'string'
+          ? JSON.parse((event as any).contactIds)
+          : (event as any).contactIds || [];
+      } catch {
+        contactIds = [];
+      }
+
       setFormData({
         titolo: event.titolo,
         descrizione: event.descrizione || '',
@@ -174,6 +186,7 @@ const InternalCalendar: React.FC = () => {
         allDay: event.allDay,
         colore: event.colore || '#3B82F6',
         reminderMinutes: event.reminderMinutes || 15,
+        contactIds: contactIds,
       });
     } else {
       resetForm();
@@ -552,6 +565,16 @@ const InternalCalendar: React.FC = () => {
                   onChange={(e) => setFormData({ ...formData, reminderMinutes: parseInt(e.target.value) })}
                   min="0"
                   className="w-full px-3 py-2 bg-slate-700 text-white rounded-lg border border-indigo-500/20"
+                />
+              </div>
+
+              {/* Contatti */}
+              <div>
+                <ContactMentionInput
+                  selectedContacts={formData.contactIds}
+                  onChange={(contactIds) => setFormData({ ...formData, contactIds })}
+                  label="Contatti associati"
+                  placeholder="Cerca contatti da associare all'evento..."
                 />
               </div>
 

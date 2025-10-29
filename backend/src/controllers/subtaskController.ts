@@ -167,6 +167,61 @@ class SubtaskController {
         return res.status(403).json({ error: "Non hai permessi per modificare questa subtask" });
       }
 
+      // 🆕 Se la subtask viene completata, chiudi automaticamente i timer attivi
+      const wasCompleted = completata === true && !subtask.completata;
+
+      if (wasCompleted) {
+        console.log(`⏱️  Subtask completata - Chiusura automatica timer per subtask ${id}`);
+
+        // Trova tutte le sessioni attive o in pausa per questa subtask
+        const activeSessions = await prisma.workSession.findMany({
+          where: {
+            subtaskId: id,
+            stato: { in: ['active', 'paused'] }
+          },
+          include: {
+            user: true
+          }
+        });
+
+        console.log(`   Trovate ${activeSessions.length} sessioni attive da chiudere`);
+
+        // Chiudi ogni sessione e crea il worklog corrispondente
+        for (const session of activeSessions) {
+          const endTime = new Date();
+          let tempoTotale = session.tempoAccumulato;
+
+          // Se la sessione è active, aggiungi il tempo dall'ultimo start
+          if (session.stato === 'active' && session.startedAt) {
+            const lastSessionTime = Math.floor((endTime.getTime() - new Date(session.startedAt).getTime()) / 60000);
+            tempoTotale += lastSessionTime;
+          }
+
+          // Aggiorna la sessione a completed
+          await prisma.workSession.update({
+            where: { id: session.id },
+            data: {
+              stato: 'completed',
+              tempoAccumulato: tempoTotale,
+              completedAt: endTime
+            }
+          });
+
+          // Crea il worklog
+          await prisma.taskWorklog.create({
+            data: {
+              taskId: subtask.taskId,
+              userId: session.userId,
+              minuti: tempoTotale,
+              note: `Timer chiuso automaticamente al completamento della subtask "${subtask.titolo}"`,
+              checklistDone: '[]'
+            }
+          });
+
+          console.log(`   ✅ Chiusa sessione ${session.id} - ${tempoTotale} minuti`);
+        }
+      }
+
       const updatedSubtask = await prisma.subtask.update({
         where: { id },
         data: {
@@ -186,6 +241,43 @@ class SubtaskController {
           payload: stringifyJsonField(req.body)
         }
       });
+
+      // 🆕 Distribuisci punti se la subtask è stata completata
+      if (wasCompleted && subtask.task.rewardPerSubtask > 0) {
+        const currentPeriod = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`;
+
+        // Dai i punti all'utente che ha completato la subtask
+        await prisma.score.create({
+          data: {
+            userId: req.user!.id,
+            taskId: subtask.taskId,
+            puntiBase: subtask.task.rewardPerSubtask,
+            punti: subtask.task.rewardPerSubtask,
+            puntiTotali: subtask.task.rewardPerSubtask,
+            periodo: currentPeriod,
+            breakdown: JSON.stringify({
+              tipo: 'subtask_completata',
+              subtaskId: id,
+              subtaskTitolo: subtask.titolo,
+              taskId: subtask.taskId,
+              taskTitolo: subtask.task.titolo
+            })
+          }
+        });
+
+        // Notifica l'utente
+        await prisma.notification.create({
+          data: {
+            userId: req.user!.id,
+            tipo: 'punti_guadagnati',
+            titolo: 'Punti guadagnati!',
+            messaggio: `Hai guadagnato ${subtask.task.rewardPerSubtask} punti completando la subtask "${subtask.titolo}"`,
+            link: `/tasks/${subtask.taskId}`
+          }
+        });
+
+        console.log(`💰 Distribuiti ${subtask.task.rewardPerSubtask} punti per subtask completata`);
+      }
 
       // Controlla se tutte le subtask sono completate
       const allSubtasks = await prisma.subtask.findMany({
@@ -218,6 +310,36 @@ class SubtaskController {
             link: `/tasks/${subtask.taskId}`
           }
         });
+
+        // 🆕 Aggiorna progresso progetto (se collegato)
+        if (subtask.task.progettoId) {
+          const progetto = await prisma.progetto.findUnique({
+            where: { id: subtask.task.progettoId },
+            include: {
+              tasks: {
+                include: {
+                  subtasks: true
+                }
+              }
+            }
+          });
+
+          if (progetto && !progetto.isFolder) {
+            // Calcola progresso del progetto
+            const totalTasks = progetto.tasks.length;
+            const completedTasks = progetto.tasks.filter(t => t.stato === 'completed').length;
+            const progress = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
+
+            await prisma.progetto.update({
+              where: { id: subtask.task.progettoId },
+              data: {
+                progresso: progress
+              }
+            });
+
+            console.log(`📊 Aggiornato progresso progetto "${progetto.nome}": ${progress}%`);
+          }
+        }
       } else if (!allCompleted && subtask.task.stato === 'completed') {
         // Se era completato ma ora non più, riportalo in progress
         await prisma.task.update({
@@ -274,6 +396,61 @@ class SubtaskController {
         return res.status(403).json({ error: "Non hai permessi per modificare questa subtask" });
       }
 
+      // 🆕 Se la subtask viene completata, chiudi automaticamente i timer attivi
+      const wasCompleted = !subtask.completata; // Sta per essere completata (toggle)
+
+      if (wasCompleted) {
+        console.log(`⏱️  Subtask completata (toggle) - Chiusura automatica timer per subtask ${id}`);
+
+        // Trova tutte le sessioni attive o in pausa per questa subtask
+        const activeSessions = await prisma.workSession.findMany({
+          where: {
+            subtaskId: id,
+            stato: { in: ['active', 'paused'] }
+          },
+          include: {
+            user: true
+          }
+        });
+
+        console.log(`   Trovate ${activeSessions.length} sessioni attive da chiudere`);
+
+        // Chiudi ogni sessione e crea il worklog corrispondente
+        for (const session of activeSessions) {
+          const endTime = new Date();
+          let tempoTotale = session.tempoAccumulato;
+
+          // Se la sessione è active, aggiungi il tempo dall'ultimo start
+          if (session.stato === 'active' && session.startedAt) {
+            const lastSessionTime = Math.floor((endTime.getTime() - new Date(session.startedAt).getTime()) / 60000);
+            tempoTotale += lastSessionTime;
+          }
+
+          // Aggiorna la sessione a completed
+          await prisma.workSession.update({
+            where: { id: session.id },
+            data: {
+              stato: 'completed',
+              tempoAccumulato: tempoTotale,
+              completedAt: endTime
+            }
+          });
+
+          // Crea il worklog
+          await prisma.taskWorklog.create({
+            data: {
+              taskId: subtask.taskId,
+              userId: session.userId,
+              minuti: tempoTotale,
+              note: `Timer chiuso automaticamente al completamento della subtask "${subtask.titolo}"`,
+              checklistDone: '[]'
+            }
+          });
+
+          console.log(`   ✅ Chiusa sessione ${session.id} - ${tempoTotale} minuti`);
+        }
+      }
+
       const updatedSubtask = await prisma.subtask.update({
         where: { id },
         data: {
@@ -291,6 +468,43 @@ class SubtaskController {
         }
       });
 
+      // 🆕 Distribuisci punti se la subtask è completata
+      if (wasCompleted && subtask.task.rewardPerSubtask > 0) {
+        const currentPeriod = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`;
+
+        // Dai i punti all'utente che ha completato la subtask
+        await prisma.score.create({
+          data: {
+            userId: req.user!.id,
+            taskId: subtask.taskId,
+            puntiBase: subtask.task.rewardPerSubtask,
+            punti: subtask.task.rewardPerSubtask,
+            puntiTotali: subtask.task.rewardPerSubtask,
+            periodo: currentPeriod,
+            breakdown: JSON.stringify({
+              tipo: 'subtask_completata',
+              subtaskId: id,
+              subtaskTitolo: subtask.titolo,
+              taskId: subtask.taskId,
+              taskTitolo: subtask.task.titolo
+            })
+          }
+        });
+
+        // Notifica l'utente
+        await prisma.notification.create({
+          data: {
+            userId: req.user!.id,
+            tipo: 'punti_guadagnati',
+            titolo: 'Punti guadagnati!',
+            messaggio: `Hai guadagnato ${subtask.task.rewardPerSubtask} punti completando la subtask "${subtask.titolo}"`,
+            link: `/tasks/${subtask.taskId}`
+          }
+        });
+
+        console.log(`💰 Distribuiti ${subtask.task.rewardPerSubtask} punti per subtask completata`);
+      }
+
       // Controlla se tutte le subtask sono completate per auto-completare il task
       const allSubtasks = await prisma.subtask.findMany({
         where: { taskId: subtask.taskId }
@@ -307,6 +521,46 @@ class SubtaskController {
           }
         });
 
+        // 🆕 Distribuisci punti base per completamento task (se ci sono subtask, i punti vengono distribuiti tramite subtask)
+        // Solo se rewardPoints > 0 e nessuna subtask
+        if (subtask.task.rewardPoints > 0 && allSubtasks.length === 0) {
+          const currentPeriod = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`;
+
+          // Distribuisci i punti agli assignee del task
+          const assigneeIds = subtask.task.assignees.map(a => a.id);
+          const pointsPerAssignee = Math.floor(subtask.task.rewardPoints / Math.max(assigneeIds.length, 1));
+
+          for (const assigneeId of assigneeIds) {
+            await prisma.score.create({
+              data: {
+                userId: assigneeId,
+                taskId: subtask.taskId,
+                puntiBase: pointsPerAssignee,
+                punti: pointsPerAssignee,
+                puntiTotali: pointsPerAssignee,
+                periodo: currentPeriod,
+                breakdown: JSON.stringify({
+                  tipo: 'task_completata',
+                  taskId: subtask.taskId,
+                  taskTitolo: subtask.task.titolo
+                })
+              }
+            });
+
+            await prisma.notification.create({
+              data: {
+                userId: assigneeId,
+                tipo: 'punti_guadagnati',
+                titolo: 'Task completata!',
+                messaggio: `Hai guadagnato ${pointsPerAssignee} punti completando il task "${subtask.task.titolo}"`,
+                link: `/tasks/${subtask.taskId}`
+              }
+            });
+          }
+
+          console.log(`💰 Distribuiti ${subtask.task.rewardPoints} punti per task completata (${assigneeIds.length} assignees)`);
+        }
+
         // Notifica il proprietario del task
         await prisma.notification.create({
           data: {
@@ -317,6 +571,36 @@ class SubtaskController {
             link: `/tasks/${subtask.taskId}`
           }
         });
+
+        // 🆕 Aggiorna progresso progetto (se collegato)
+        if (subtask.task.progettoId) {
+          const progetto = await prisma.progetto.findUnique({
+            where: { id: subtask.task.progettoId },
+            include: {
+              tasks: {
+                include: {
+                  subtasks: true
+                }
+              }
+            }
+          });
+
+          if (progetto && !progetto.isFolder) {
+            // Calcola progresso del progetto
+            const totalTasks = progetto.tasks.length;
+            const completedTasks = progetto.tasks.filter(t => ['completed', 'completato', 'completata'].includes(t.stato)).length;
+            const progress = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
+
+            await prisma.progetto.update({
+              where: { id: subtask.task.progettoId },
+              data: {
+                progresso: progress
+              }
+            });
+
+            console.log(`📊 Aggiornato progresso progetto "${progetto.nome}": ${progress}%`);
+          }
+        }
       } else if (!allCompleted && ['completed', 'completato', 'completata'].includes(subtask.task.stato)) {
         // Se era completato ma ora non più, riportalo in corso
         await prisma.task.update({

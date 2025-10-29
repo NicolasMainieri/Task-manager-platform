@@ -3,11 +3,12 @@ import prisma from "../config/database";
 import { AuthRequest } from "../middleware/auth";
 import { stringifyJsonField } from "../utils/jsonHelper";
 import scoreService from "../services/score.service";
+import penaltyService from "../services/penalty.service";
 
 class TaskController {
   async createTask(req: AuthRequest, res: Response) {
     try {
-      const { titolo, descrizione, priorita, difficolta, scadenza, assignedTo, assignedTeam, teamId, progettoId, tags, checklist, subtasks } = req.body;
+      const { titolo, descrizione, priorita, difficolta, scadenza, assignedTo, assignedTeam, teamId, progettoId, tags, checklist, subtasks, contactIds } = req.body;
 
       // Se è stato selezionato un team, recupera tutti i membri del team
       let finalAssigneeIds = assignedTo || [];
@@ -38,6 +39,7 @@ class TaskController {
         progettoId,
         tags: stringifyJsonField(tags || []),
         checklist: stringifyJsonField(checklist || []),
+        contactIds: stringifyJsonField(contactIds || []),
         assignees: { connect: finalAssigneeIds.map((id: string) => ({ id })) },
       };
 
@@ -297,6 +299,65 @@ class TaskController {
 
       if (wasCompleted) {
         updateData.dataFine = new Date();
+
+        // 🆕 Chiudi automaticamente tutti i timer attivi per questa task e le sue subtask
+        console.log(`⏱️  Task completata - Chiusura automatica timer per task ${id}`);
+
+        // Trova tutte le subtask della task
+        const subtasks = await prisma.subtask.findMany({
+          where: { taskId: id }
+        });
+
+        const subtaskIds = subtasks.map(st => st.id);
+
+        // Trova tutte le sessioni attive o in pausa per queste subtask
+        const activeSessions = await prisma.workSession.findMany({
+          where: {
+            subtaskId: { in: subtaskIds },
+            stato: { in: ['active', 'paused'] }
+          },
+          include: {
+            subtask: true,
+            user: true
+          }
+        });
+
+        console.log(`   Trovate ${activeSessions.length} sessioni attive da chiudere`);
+
+        // Chiudi ogni sessione e crea il worklog corrispondente
+        for (const session of activeSessions) {
+          const endTime = new Date();
+          let tempoTotale = session.tempoAccumulato;
+
+          // Se la sessione è active, aggiungi il tempo dall'ultimo start
+          if (session.stato === 'active' && session.startedAt) {
+            const lastSessionTime = Math.floor((endTime.getTime() - new Date(session.startedAt).getTime()) / 60000);
+            tempoTotale += lastSessionTime;
+          }
+
+          // Aggiorna la sessione a completed
+          await prisma.workSession.update({
+            where: { id: session.id },
+            data: {
+              stato: 'completed',
+              tempoAccumulato: tempoTotale,
+              completedAt: endTime
+            }
+          });
+
+          // Crea il worklog
+          await prisma.taskWorklog.create({
+            data: {
+              taskId: id,
+              userId: session.userId,
+              minuti: tempoTotale,
+              note: `Timer chiuso automaticamente al completamento della task`,
+              checklistDone: '[]'
+            }
+          });
+
+          console.log(`   ✅ Chiusa sessione ${session.id} per subtask "${session.subtask.titolo}" - ${tempoTotale} minuti`);
+        }
       }
 
       const task = await prisma.task.update({
@@ -327,6 +388,37 @@ class TaskController {
           // Calcola lo score una sola volta (viene assegnato all'owner e distribuito al team se necessario)
           const score = await scoreService.calculateTaskScore(task.id, new Date());
           console.log(`✅ Score calcolato per task ${task.id}: ${score} punti`);
+
+          // Assegna bonus per prima task del giorno
+          const today = new Date();
+          today.setHours(0, 0, 0, 0);
+          const tasksCompletedToday = await prisma.score.count({
+            where: {
+              userId: req.user!.id,
+              tipo: 'task_completion',
+              createdAt: { gte: today }
+            }
+          });
+
+          if (tasksCompletedToday === 1) {
+            await penaltyService.firstTaskBonus(req.user!.id);
+          }
+
+          // Bonus per completamento anticipato
+          if (existingTask.scadenza) {
+            const scadenza = new Date(existingTask.scadenza);
+            const completedAt = new Date();
+            const giorniAnticipo = Math.floor((scadenza.getTime() - completedAt.getTime()) / (1000 * 60 * 60 * 24));
+
+            if (giorniAnticipo > 0) {
+              await penaltyService.earlyCompletionBonus(req.user!.id, giorniAnticipo);
+            }
+          }
+
+          // Bonus collaborazione se la task è di team
+          if (existingTask.teamId && existingTask.assignees.length > 1) {
+            await penaltyService.collaborationBonus(req.user!.id);
+          }
 
           // Notifica gli admin del completamento
           const admins = await prisma.user.findMany({
@@ -561,17 +653,18 @@ class TaskController {
 
   private async getMyTasksFiltered(req: AuthRequest, res: Response) {
     try {
-      console.log('🔍 getMyTasksFiltered called with query:', req.query);
-      console.log('🔍 User ID:', req.user!.id);
+      console.log('🔍 getMyTasksFiltered START');
+      console.log('🔍 Query params:', req.query);
+      console.log('🔍 User:', req.user);
 
       const { stato, priorita, limit, today } = req.query;
 
+      console.log('🔍 Fetching current user...');
       const currentUser = await prisma.user.findUnique({
         where: { id: req.user!.id },
         select: { companyId: true }
       });
-
-      console.log('🔍 Current user:', currentUser);
+      console.log('🔍 Current user companyId:', currentUser?.companyId);
 
       const where: any = {
         OR: [
@@ -589,17 +682,20 @@ class TaskController {
 
       // Filtri per stato (può essere multiplo separato da virgola)
       if (stato) {
+        console.log('🔍 Adding stato filter:', stato);
         const stati = (stato as string).split(',').map(s => s.trim());
         where.stato = { in: stati };
       }
 
       // Filtro per priorità
       if (priorita) {
+        console.log('🔍 Adding priorita filter:', priorita);
         where.priorita = priorita;
       }
 
       // Filtro per today (solo task di oggi)
       if (today === 'true') {
+        console.log('🔍 Adding today filter');
         const todayStart = new Date();
         todayStart.setHours(0, 0, 0, 0);
         const todayEnd = new Date();
@@ -609,6 +705,9 @@ class TaskController {
           lte: todayEnd
         };
       }
+
+      console.log('🔍 Query where:', JSON.stringify(where, null, 2));
+      console.log('🔍 Querying database...');
 
       const tasks = await prisma.task.findMany({
         where,
@@ -623,9 +722,13 @@ class TaskController {
       });
 
       console.log('✅ Tasks found:', tasks.length);
+      console.log('✅ Sending response...');
       res.json(tasks);
+      console.log('✅ Response sent!');
     } catch (error: any) {
-      console.error('❌ Error in getMyTasksFiltered:', error);
+      console.error('❌ ERROR in getMyTasksFiltered:', error);
+      console.error('❌ Error stack:', error.stack);
+      console.error('❌ Error message:', error.message);
       res.status(500).json({ error: error.message });
     }
   }

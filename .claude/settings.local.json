@@ -52,7 +52,15 @@
       "Bash(git reset:*)",
       "Bash(git commit -m \"$(cat <<''EOF''\nAdd LiquidEther fluid simulation background and update Landing page\n\nMajor changes:\n- Implemented LiquidEther WebGL fluid simulation component with Three.js\n- Replaced static backgrounds with interactive fluid effects\n- Updated Landing page with new stats section (10k+ teams, 99.9% uptime, 40% productivity)\n- Changed branding from TaskFlow to Planora\n- Updated pricing: Starter €19.99, Professional €99.99, Enterprise (contact)\n- Applied LiquidEther background to Landing and Login pages\n- Improved video call device management (mic/camera selection)\n- Added auto-demo mode with smooth takeover transitions\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n\nCo-Authored-By: Claude <noreply@anthropic.com>\nEOF\n)\")",
       "Bash(git push:*)",
-      "Bash(git commit:*)"
+      "Bash(git commit:*)",
+      "Bash(git checkout:*)",
+      "Read(//c/**)",
+      "Bash(awk:*)",
+      "Bash(xargs -I {} taskkill //PID {} //F)",
+      "Bash(if not exist uploadsdocuments mkdir uploadsdocuments)",
+      "Bash(if not exist \"c:\\Users\\Windows\\Desktop\\task-management-platform\\backend\\uploads\\preventivi\" mkdir \"c:\\Users\\Windows\\Desktop\\task-management-platform\\backend\\uploads\\preventivi\")",
+      "Bash(if not exist uploadspreventivi mkdir uploadspreventivi)",
+      "Bash(if exist backendnul del backendnul)"
     ],
     "deny": [],
     "ask": []

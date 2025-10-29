@@ -15,7 +15,10 @@ const SubtaskItemWithTimer: React.FC<SubtaskItemWithTimerProps> = ({ subtask, on
   const [isLoading, setIsLoading] = useState(false);
   const token = localStorage.getItem('token');
 
-  const handleToggleComplete = async () => {
+  const handleToggleComplete = async (e: React.MouseEvent) => {
+    // Previeni la propagazione dell'evento per evitare di chiudere il menu
+    e.stopPropagation();
+
     setIsLoading(true);
     try {
       const response = await axios.put(
@@ -47,6 +50,7 @@ const SubtaskItemWithTimer: React.FC<SubtaskItemWithTimerProps> = ({ subtask, on
           ? 'bg-slate-800/30 opacity-60'
           : 'bg-slate-800/50 hover:bg-slate-800/70'
       }`}
+      onClick={(e) => e.stopPropagation()}
     >
       {/* Checkbox */}
       <button

@@ -1,6 +1,32 @@
 import { Response } from "express";
 import prisma from "../config/database";
 import { AuthRequest } from "../middleware/auth";
+import noteAIService from "../services/noteAI.service";
+import multer from "multer";
+
+// Configurazione multer per upload audio
+export const audioUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: {
+    fileSize: 25 * 1024 * 1024, // 25MB max (limite Whisper API)
+  },
+  fileFilter: (req, file, cb) => {
+    const allowedMimes = [
+      "audio/mpeg",
+      "audio/mp3",
+      "audio/wav",
+      "audio/webm",
+      "audio/ogg",
+      "video/mp4",
+      "video/webm",
+    ];
+    if (allowedMimes.includes(file.mimetype)) {
+      cb(null, true);
+    } else {
+      cb(new Error("Formato file non supportato"));
+    }
+  },
+});
 
 class NoteController {
   // Ottieni tutte le note dell'utente
@@ -273,6 +299,309 @@ class NoteController {
         .filter(c => c !== null);
 
       res.json(categories);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  }
+
+  // ==================== AI FEATURES ====================
+
+  // Genera riassunto
+  async generateSummary(req: AuthRequest, res: Response) {
+    try {
+      const { id } = req.params;
+      const userId = req.user!.id;
+
+      const note = await prisma.note.findUnique({ where: { id } });
+      if (!note) {
+        return res.status(404).json({ error: "Nota non trovata" });
+      }
+
+      // Verifica permessi
+      const sharedWith = JSON.parse(note.sharedWith || '[]');
+      if (note.autoreId !== userId && !note.isPublic && !sharedWith.includes(userId)) {
+        return res.status(403).json({ error: "Non hai accesso a questa nota" });
+      }
+
+      const summary = await noteAIService.generateSummary(note.contenuto);
+
+      // Aggiorna la nota con il riassunto
+      await prisma.note.update({
+        where: { id },
+        data: { aiSummary: summary }
+      });
+
+      res.json({ summary });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  }
+
+  // Genera bullet points
+  async generateBullets(req: AuthRequest, res: Response) {
+    try {
+      const { id } = req.params;
+      const userId = req.user!.id;
+
+      const note = await prisma.note.findUnique({ where: { id } });
+      if (!note) {
+        return res.status(404).json({ error: "Nota non trovata" });
+      }
+
+      // Verifica permessi
+      const sharedWith = JSON.parse(note.sharedWith || '[]');
+      if (note.autoreId !== userId && !note.isPublic && !sharedWith.includes(userId)) {
+        return res.status(403).json({ error: "Non hai accesso a questa nota" });
+      }
+
+      const bullets = await noteAIService.generateBulletPoints(note.contenuto);
+
+      res.json({ bullets });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  }
+
+  // Correggi grammatica
+  async correctGrammar(req: AuthRequest, res: Response) {
+    try {
+      const { id } = req.params;
+      const userId = req.user!.id;
+
+      const note = await prisma.note.findUnique({ where: { id } });
+      if (!note) {
+        return res.status(404).json({ error: "Nota non trovata" });
+      }
+
+      // Solo l'autore può modificare
+      if (note.autoreId !== userId) {
+        return res.status(403).json({ error: "Non hai permessi per modificare questa nota" });
+      }
+
+      const correctedText = await noteAIService.correctGrammar(note.contenuto);
+
+      // Aggiorna la nota con il testo corretto
+      const updatedNote = await prisma.note.update({
+        where: { id },
+        data: { contenuto: correctedText }
+      });
+
+      res.json({ contenuto: correctedText });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  }
+
+  // Traduci nota
+  async translateNote(req: AuthRequest, res: Response) {
+    try {
+      const { id } = req.params;
+      const { targetLang = 'en' } = req.body;
+      const userId = req.user!.id;
+
+      const note = await prisma.note.findUnique({ where: { id } });
+      if (!note) {
+        return res.status(404).json({ error: "Nota non trovata" });
+      }
+
+      // Verifica permessi
+      const sharedWith = JSON.parse(note.sharedWith || '[]');
+      if (note.autoreId !== userId && !note.isPublic && !sharedWith.includes(userId)) {
+        return res.status(403).json({ error: "Non hai accesso a questa nota" });
+      }
+
+      const translatedText = await noteAIService.translate(note.contenuto, targetLang);
+
+      res.json({ translation: translatedText, targetLang });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  }
+
+  // Espandi nota
+  async expandNote(req: AuthRequest, res: Response) {
+    try {
+      const { id } = req.params;
+      const userId = req.user!.id;
+
+      const note = await prisma.note.findUnique({ where: { id } });
+      if (!note) {
+        return res.status(404).json({ error: "Nota non trovata" });
+      }
+
+      // Solo l'autore può modificare
+      if (note.autoreId !== userId) {
+        return res.status(403).json({ error: "Non hai permessi per modificare questa nota" });
+      }
+
+      const expandedText = await noteAIService.expandNote(note.contenuto);
+
+      // Aggiorna la nota con il testo espanso
+      const updatedNote = await prisma.note.update({
+        where: { id },
+        data: { contenuto: expandedText }
+      });
+
+      res.json({ contenuto: expandedText });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  }
+
+  // Genera nota da prompt
+  async generateFromPrompt(req: AuthRequest, res: Response) {
+    try {
+      const { prompt, progettoId, taskId } = req.body;
+      const userId = req.user!.id;
+
+      if (!prompt) {
+        return res.status(400).json({ error: "Prompt richiesto" });
+      }
+
+      const { titolo, contenuto } = await noteAIService.generateFromPrompt(prompt, userId);
+
+      // Crea la nota generata dall'AI
+      const note = await prisma.note.create({
+        data: {
+          titolo,
+          contenuto,
+          tipo: 'ai_generated',
+          aiGenerated: true,
+          aiPrompt: prompt,
+          autoreId: userId,
+          progettoId,
+          taskId
+        },
+        include: {
+          autore: {
+            select: {
+              id: true,
+              nome: true,
+              cognome: true,
+              avatar: true
+            }
+          }
+        }
+      });
+
+      res.status(201).json(note);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  }
+
+  // Trascrivi audio
+  async transcribeAudio(req: AuthRequest, res: Response) {
+    try {
+      const userId = req.user!.id;
+      const { videoCallId, language = 'it' } = req.body;
+
+      // Multer processa il file
+      const file = (req as any).file;
+      if (!file) {
+        return res.status(400).json({ error: "File audio richiesto" });
+      }
+
+      // Trascrivi con Whisper
+      const { text, duration, language: detectedLang } = await noteAIService.transcribeAudio(
+        file.buffer,
+        file.originalname,
+        language
+      );
+
+      // Genera analisi della trascrizione
+      const analysis = await noteAIService.generateNotesFromTranscription(text);
+
+      // Crea nota di trascrizione
+      const note = await prisma.note.create({
+        data: {
+          titolo: `Trascrizione ${videoCallId ? `Videochiamata ${videoCallId.slice(0, 8)}` : new Date().toLocaleDateString('it-IT')}`,
+          contenuto: text,
+          tipo: 'transcription',
+          isTranscription: true,
+          videoCallId,
+          transcriptionLang: detectedLang,
+          transcriptionDuration: duration,
+          aiSummary: analysis.summary,
+          aiGenerated: true,
+          autoreId: userId
+        },
+        include: {
+          autore: {
+            select: {
+              id: true,
+              nome: true,
+              cognome: true,
+              avatar: true
+            }
+          }
+        }
+      });
+
+      res.status(201).json({
+        note,
+        analysis: {
+          summary: analysis.summary,
+          actionItems: analysis.actionItems,
+          keyPoints: analysis.keyPoints
+        }
+      });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  }
+
+  // Genera riassunto meeting
+  async generateMeetingSummary(req: AuthRequest, res: Response) {
+    try {
+      const { roomId } = req.params;
+
+      const summary = await noteAIService.generateMeetingSummary(roomId);
+
+      res.json(summary);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  }
+
+  // Genera e salva note complete del meeting
+  async generateAndSaveMeetingNotes(req: AuthRequest, res: Response) {
+    try {
+      const { roomId } = req.params;
+      const userId = req.user!.id;
+
+      const noteContent = await noteAIService.generateMeetingNotes(roomId);
+      const summary = await noteAIService.generateMeetingSummary(roomId);
+
+      // Salva la nota
+      const note = await prisma.note.create({
+        data: {
+          titolo: summary.titolo,
+          contenuto: noteContent,
+          tipo: 'ai_generated',
+          aiGenerated: true,
+          aiSummary: summary.summary,
+          videoCallId: roomId,
+          autoreId: userId
+        },
+        include: {
+          autore: {
+            select: {
+              id: true,
+              nome: true,
+              cognome: true,
+              avatar: true
+            }
+          }
+        }
+      });
+
+      res.status(201).json({
+        note,
+        summary,
+        actionItems: summary.actionItems,
+        keyPoints: summary.keyPoints
+      });
     } catch (error: any) {
       res.status(500).json({ error: error.message });
     }

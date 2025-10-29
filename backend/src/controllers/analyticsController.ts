@@ -392,6 +392,9 @@ class AnalyticsController {
       });
       const score = scoreData._sum.puntiTotali || 0;
 
+      console.log(`[Analytics] User ${userId} - Score query result:`, scoreData);
+      console.log(`[Analytics] User ${userId} - Total score: ${score}`);
+
       // Ranking dell'utente
       const allUsers = await prisma.user.findMany({
         where: { companyId: req.user!.companyId },
@@ -402,17 +405,24 @@ class AnalyticsController {
         allUsers.map(async (user) => {
           const userScore = await prisma.score.aggregate({
             where: { userId: user.id },
-            _sum: { punti: true }
+            _sum: { puntiTotali: true }
           });
           return {
             userId: user.id,
-            score: userScore._sum.punti || 0
+            score: userScore._sum.puntiTotali || 0
           };
         })
       );
 
       userScores.sort((a, b) => b.score - a.score);
       const ranking = userScores.findIndex(u => u.userId === userId) + 1;
+
+      console.log(`[Analytics] Sending response:`, {
+        tasksToday,
+        score,
+        ranking,
+        completedToday
+      });
 
       res.json({
         tasksToday,
@@ -457,6 +467,307 @@ class AnalyticsController {
 
       res.json(progress);
     } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  }
+
+  // 🆕 ADMIN ONLY: Cronologia task completate per dipendente
+  async getTaskHistory(req: AuthRequest, res: Response) {
+    try {
+      const { userId, startDate, endDate } = req.query;
+
+      const user = await prisma.user.findUnique({
+        where: { id: req.user!.id },
+        select: { companyId: true }
+      });
+
+      const whereClause: any = {
+        owner: { companyId: user?.companyId },
+        stato: { in: ['completed', 'completato', 'completata'] }
+      };
+
+      if (userId) {
+        whereClause.OR = [
+          { ownerId: userId as string },
+          { assignees: { some: { id: userId as string } } }
+        ];
+      }
+
+      if (startDate || endDate) {
+        whereClause.dataFine = {};
+        if (startDate) whereClause.dataFine.gte = new Date(startDate as string);
+        if (endDate) whereClause.dataFine.lte = new Date(endDate as string);
+      }
+
+      const tasks = await prisma.task.findMany({
+        where: whereClause,
+        include: {
+          owner: { select: { id: true, nome: true, cognome: true, email: true, avatar: true } },
+          assignees: { select: { id: true, nome: true, cognome: true, email: true, avatar: true } },
+          subtasks: { select: { id: true, titolo: true, completata: true } },
+          progetto: { select: { id: true, nome: true, colore: true } },
+          team: { select: { id: true, nome: true, colore: true } },
+          scores: {
+            where: userId ? { userId: userId as string } : undefined,
+            select: { id: true, userId: true, puntiTotali: true, periodo: true, createdAt: true, breakdown: true }
+          }
+        },
+        orderBy: { dataFine: 'desc' }
+      });
+
+      const tasksWithStats = tasks.map(task => ({
+        ...task,
+        totalSubtasks: task.subtasks.length,
+        completedSubtasks: task.subtasks.filter(st => st.completata).length,
+        completionPercentage: task.subtasks.length > 0 ? Math.round((task.subtasks.filter(st => st.completata).length / task.subtasks.length) * 100) : 100,
+        totalPointsAwarded: task.scores.reduce((sum, s) => sum + s.puntiTotali, 0)
+      }));
+
+      res.json(tasksWithStats);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  }
+
+  // 🆕 ADMIN ONLY: Assegna punti manualmente
+  async assignManualPoints(req: AuthRequest, res: Response) {
+    try {
+      const { userId, punti, motivo, taskId } = req.body;
+
+      if (!userId || !punti || !motivo) {
+        return res.status(400).json({ error: 'userId, punti e motivo sono obbligatori' });
+      }
+
+      const user = await prisma.user.findUnique({
+        where: { id: req.user!.id },
+        select: { companyId: true }
+      });
+
+      const targetUser = await prisma.user.findFirst({
+        where: { id: userId, companyId: user?.companyId }
+      });
+
+      if (!targetUser) {
+        return res.status(404).json({ error: 'Utente non trovato' });
+      }
+
+      const currentPeriod = this.getCurrentPeriod();
+
+      const score = await prisma.score.create({
+        data: {
+          userId: userId,
+          taskId: taskId || userId,
+          puntiBase: parseInt(punti),
+          punti: parseInt(punti),
+          puntiTotali: parseInt(punti),
+          periodo: currentPeriod,
+          breakdown: JSON.stringify({
+            tipo: 'assegnazione_manuale_admin',
+            motivo: motivo,
+            assignedBy: req.user!.id,
+            assignedAt: new Date().toISOString()
+          })
+        }
+      });
+
+      await prisma.notification.create({
+        data: {
+          userId: userId,
+          tipo: 'punti_assegnati',
+          titolo: 'Punti assegnati dall\'Admin',
+          messaggio: `Hai ricevuto ${punti} punti dall'amministratore. Motivo: ${motivo}`,
+          link: '/progress'
+        }
+      });
+
+      res.status(201).json({
+        success: true,
+        score,
+        message: `${punti} punti assegnati con successo a ${targetUser.nome} ${targetUser.cognome}`
+      });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  }
+
+  // 🆕 ADMIN ONLY: Statistiche dettagliate dipendente
+  async getEmployeeStats(req: AuthRequest, res: Response) {
+    try {
+      const { userId } = req.params;
+
+      const user = await prisma.user.findUnique({
+        where: { id: req.user!.id },
+        select: { companyId: true }
+      });
+
+      const targetUser = await prisma.user.findFirst({
+        where: { id: userId, companyId: user?.companyId },
+        include: { role: true, team: true }
+      });
+
+      if (!targetUser) {
+        return res.status(404).json({ error: 'Utente non trovato' });
+      }
+
+      const [ownedTasks, assignedTasks, completedOwnedTasks, completedAssignedTasks] = await Promise.all([
+        prisma.task.count({ where: { ownerId: userId } }),
+        prisma.task.count({ where: { assignees: { some: { id: userId } } } }),
+        prisma.task.count({ where: { ownerId: userId, stato: { in: ['completed', 'completato'] } } }),
+        prisma.task.count({ where: { assignees: { some: { id: userId } }, stato: { in: ['completed', 'completato'] } } })
+      ]);
+
+      const currentPeriod = this.getCurrentPeriod();
+
+      const [totalPoints, monthlyPoints] = await Promise.all([
+        prisma.score.aggregate({ where: { userId }, _sum: { puntiTotali: true } }),
+        prisma.score.aggregate({ where: { userId, periodo: currentPeriod }, _sum: { puntiTotali: true } })
+      ]);
+
+      res.json({
+        user: {
+          id: targetUser.id,
+          nome: targetUser.nome,
+          cognome: targetUser.cognome,
+          email: targetUser.email,
+          avatar: targetUser.avatar,
+          role: targetUser.role,
+          team: targetUser.team
+        },
+        stats: {
+          totalOwnedTasks: ownedTasks,
+          totalAssignedTasks: assignedTasks,
+          completedOwnedTasks,
+          completedAssignedTasks,
+          totalTasksCompleted: completedOwnedTasks + completedAssignedTasks,
+          completionRate: Math.round(((completedOwnedTasks + completedAssignedTasks) / (ownedTasks + assignedTasks)) * 100) || 0,
+          totalPoints: totalPoints._sum.puntiTotali || 0,
+          monthlyPoints: monthlyPoints._sum.puntiTotali || 0
+        }
+      });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  }
+
+  // 🆕 ADMIN ONLY: Azzera tutti gli score dei dipendenti
+  async resetAllScores(req: AuthRequest, res: Response) {
+    try {
+      const user = await prisma.user.findUnique({
+        where: { id: req.user!.id },
+        select: { companyId: true }
+      });
+
+      // Trova tutti gli utenti della company
+      const companyUsers = await prisma.user.findMany({
+        where: { companyId: user?.companyId },
+        select: { id: true, nome: true, cognome: true }
+      });
+
+      const userIds = companyUsers.map(u => u.id);
+
+      // Elimina tutti gli score degli utenti della company
+      const result = await prisma.score.deleteMany({
+        where: { userId: { in: userIds } }
+      });
+
+      // Crea notifica per ogni utente
+      await Promise.all(
+        userIds.map(userId =>
+          prisma.notification.create({
+            data: {
+              userId,
+              tipo: 'sistema',
+              titolo: 'Score Azzerato',
+              messaggio: 'I punteggi di tutti i dipendenti sono stati azzerati dall\'amministratore.',
+              link: '/rewards'
+            }
+          })
+        )
+      );
+
+      res.json({
+        success: true,
+        message: `Azzerati ${result.count} punteggi per ${companyUsers.length} dipendenti`,
+        deletedCount: result.count
+      });
+    } catch (error: any) {
+      console.error('Errore resetAllScores:', error);
+      res.status(500).json({ error: error.message });
+    }
+  }
+
+  // 🆕 ADMIN ONLY: Dati reali grafici progressi
+  async getRealProgressData(req: AuthRequest, res: Response) {
+    try {
+      const user = await prisma.user.findUnique({
+        where: { id: req.user!.id },
+        select: { companyId: true }
+      });
+
+      const sevenDaysAgo = new Date();
+      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+      sevenDaysAgo.setHours(0, 0, 0, 0);
+
+      // Recupera tutte le task completate negli ultimi 7 giorni
+      const completedTasks = await prisma.task.findMany({
+        where: {
+          owner: { companyId: user?.companyId },
+          stato: { in: ['completed', 'completato', 'completata'] },
+          updatedAt: { gte: sevenDaysAgo }
+        },
+        select: {
+          id: true,
+          updatedAt: true
+        }
+      });
+
+      // Raggruppa per giorno
+      const dayGroups: Record<string, number> = {};
+      for (let i = 0; i < 7; i++) {
+        const date = new Date();
+        date.setDate(date.getDate() - (6 - i));
+        date.setHours(0, 0, 0, 0);
+        const dateStr = date.toISOString().split('T')[0];
+        dayGroups[dateStr] = 0;
+      }
+
+      completedTasks.forEach(task => {
+        const dateStr = task.updatedAt.toISOString().split('T')[0];
+        if (dayGroups[dateStr] !== undefined) {
+          dayGroups[dateStr]++;
+        }
+      });
+
+      const tasksLast7Days = Object.entries(dayGroups).map(([date, count]) => ({ date, count }));
+
+      // Performance team - recupera tutti i team con le loro task
+      const teams = await prisma.team.findMany({
+        include: {
+          tasks: true
+        }
+      });
+
+      const teamPerformance = teams.map(team => {
+        const totalTasks = team.tasks.length;
+        const completedTasks = team.tasks.filter(t => ['completed', 'completato', 'completata'].includes(t.stato)).length;
+        const completionRate = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
+
+        return {
+          id: team.id,
+          nome: team.nome,
+          colore: team.colore || '#6366f1',
+          totalTasks,
+          completedTasks,
+          completionRate
+        };
+      });
+
+      res.json({
+        tasksLast7Days,
+        teamPerformance
+      });
+    } catch (error: any) {
+      console.error('Errore getRealProgressData:', error);
       res.status(500).json({ error: error.message });
     }
   }

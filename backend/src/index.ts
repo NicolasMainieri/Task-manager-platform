@@ -14,6 +14,10 @@ const httpServer = createServer(app);
 const ALLOWED_ORIGINS = [
   "http://localhost:5173",
   "http://localhost:5174",
+  "http://localhost:5175",
+  "http://localhost:5176",
+  "http://localhost:5177",
+  "http://localhost:5178",
   process.env.FRONTEND_URL,
   process.env.FRONTEND_ORIGIN
 ].filter(Boolean) as string[];
@@ -34,6 +38,9 @@ app.use(cors({
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
+// Servire i file uploads come risorse statiche
+app.use('/uploads', express.static('uploads'));
 
 // Health check - must be before routes
 app.get("/health", (_req, res) => {
@@ -86,6 +93,5 @@ httpServer.listen(PORT, () => {
   console.log(`🔗 API: http://localhost:${PORT}/api`);
   console.log(`✅ CORS abilitato per: ${ALLOWED_ORIGINS.join(', ')}`);
 });
-
-
+ 
 

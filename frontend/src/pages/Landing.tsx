@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Menu, X, CheckCircle, Zap, Users, BarChart3, Brain, ArrowRight, Star } from 'lucide-react';
+import { Menu, X, CheckCircle, Zap, Users, BarChart3, Brain, ArrowRight, Star, Mail, Calendar } from 'lucide-react';
 import LiquidEther from '../components/LiquidEther';
 
 // Utility functions
@@ -787,6 +787,166 @@ export default function LandingPage() {
                   </div>
                 </div>
                 <p className="text-gray-300 text-sm">Incremento medio della produttività riportato dai nostri clienti</p>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* Integrations Section */}
+        <section className="py-20 px-4 bg-slate-950/30">
+          <div className="max-w-7xl mx-auto">
+            <div className="text-center mb-16">
+              <h2 className="text-4xl md:text-5xl font-bold text-white mb-4">
+                Sincronizza anche con
+              </h2>
+              <p className="text-xl text-gray-400">
+                Integra Planora con i tuoi strumenti preferiti
+              </p>
+            </div>
+
+            <div className="grid md:grid-cols-2 gap-12 max-w-5xl mx-auto">
+              {/* Email Integrations */}
+              <div className="bg-gradient-to-br from-slate-800/90 to-slate-900/90 backdrop-blur-sm p-8 rounded-2xl border border-purple-500/20 hover:border-purple-500/50 transition">
+                <div className="flex items-center gap-3 mb-6">
+                  <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-blue-600 rounded-lg flex items-center justify-center">
+                    <Mail className="w-6 h-6 text-white" />
+                  </div>
+                  <h3 className="text-2xl font-bold text-white">Email</h3>
+                </div>
+
+                <div className="space-y-4">
+                  {/* Gmail */}
+                  <div className="flex items-center gap-4 p-4 bg-slate-800/50 rounded-xl hover:bg-slate-700/50 transition">
+                    <div className="w-16 h-16 bg-white rounded-lg flex items-center justify-center shadow-lg">
+                      <svg viewBox="0 0 24 24" className="w-10 h-10">
+                        <path fill="#EA4335" d="M24 5.457v13.909c0 .904-.732 1.636-1.636 1.636h-3.819V11.73L12 16.64l-6.545-4.91v9.273H1.636A1.636 1.636 0 0 1 0 19.366V5.457c0-2.023 2.309-3.178 3.927-1.964L5.455 4.64 12 9.548l6.545-4.91 1.528-1.145C21.69 2.28 24 3.434 24 5.457z"/>
+                        <path fill="#FBBC05" d="M7.364 12.182L1.636 8.91V5.457c0-2.023 2.309-3.178 3.927-1.964L7.364 4.64"/>
+                        <path fill="#34A853" d="M16.636 12.182L22.364 8.91V5.457c0-2.023-2.309-3.178-3.927-1.964L16.636 4.64"/>
+                        <path fill="#C5221F" d="M7.364 12.182V21.09h9.272V12.182L12 16.64z"/>
+                      </svg>
+                    </div>
+                    <div className="flex-1">
+                      <p className="text-xl font-semibold text-white">Gmail</p>
+                      <p className="text-sm text-gray-400">Sincronizzazione email</p>
+                    </div>
+                  </div>
+
+                  {/* Outlook */}
+                  <div className="flex items-center gap-4 p-4 bg-slate-800/50 rounded-xl hover:bg-slate-700/50 transition">
+                    <div className="w-16 h-16 bg-white rounded-lg flex items-center justify-center shadow-lg">
+                      <svg viewBox="0 0 24 24" className="w-10 h-10">
+                        <path fill="#0078D4" d="M24 7.875v8.25A2.626 2.626 0 0 1 21.375 18.75h-7.312L14.25 12l-.187-6.75h7.312A2.626 2.626 0 0 1 24 7.875z"/>
+                        <path fill="#0364B8" d="M21.375 5.25h-7.312L14.25 12l-.187 6.75h7.312c.72 0 1.339-.288 1.8-.75L24 7.875a2.627 2.627 0 0 0-2.625-2.625z"/>
+                        <path fill="#0078D4" d="M14.063 5.25L8.25 1.5H3.375A2.626 2.626 0 0 0 .75 4.125v15.75A2.626 2.626 0 0 0 3.375 22.5H8.25l5.813-3.75V12z"/>
+                        <path fill="#28A8EA" d="M14.063 5.25H8.25v13.5h5.813V12z"/>
+                        <path fill="#0078D4" d="M8.25 1.5v4.5H3.375c-.72 0-1.339.288-1.8.75L.75 4.125A2.626 2.626 0 0 1 3.375 1.5z"/>
+                        <path fill="#0364B8" d="M8.25 18.75v3.75H3.375a2.626 2.626 0 0 1-2.625-2.625V17.25l.825-1.5c.461.462 1.08.75 1.8.75z"/>
+                        <path fill="#14447D" d="M8.25 5.25v13.5H3.375A2.626 2.626 0 0 1 .75 16.125V7.875A2.626 2.626 0 0 1 3.375 5.25z"/>
+                        <path fill="#0078D4" opacity=".5" d="M13.875 5.25h-5.437v13.5h5.437c.419 0 .806-.104 1.156-.281V5.531a2.567 2.567 0 0 0-1.156-.281z"/>
+                        <path fill="#0078D4" opacity=".1" d="M13.313 6.375H8.25v11.25h5.063c.419 0 .806-.104 1.156-.281V6.656a2.567 2.567 0 0 0-1.156-.281z"/>
+                        <path fill="#0078D4" opacity=".2" d="M13.313 6.375H8.25v10.125h5.063c.419 0 .806-.104 1.156-.281V6.656a2.567 2.567 0 0 0-1.156-.281z"/>
+                        <path fill="#0078D4" opacity=".2" d="M12.75 6.375H8.25v10.125H12.75c.419 0 .806-.104 1.156-.281V6.656a2.567 2.567 0 0 0-1.156-.281z"/>
+                        <path fill="#0078D4" opacity=".3" d="M12.75 6.375H8.25V16.5H12.75c.419 0 .806-.104 1.156-.281V6.656a2.567 2.567 0 0 0-1.156-.281z"/>
+                        <radialGradient id="outlook-a" cx="5.332" cy="12.132" r="10.114" gradientUnits="userSpaceOnUse">
+                          <stop offset="0" stopColor="#1784d8"/>
+                          <stop offset="1" stopColor="#0864c5"/>
+                        </radialGradient>
+                        <path fill="url(#outlook-a)" d="M3.469 7.688A3.844 3.844 0 0 1 7.313 3.844a3.844 3.844 0 0 1 3.843 3.844 3.844 3.844 0 0 1-3.843 3.843 3.844 3.844 0 0 1-3.844-3.843zm1.406 0a2.438 2.438 0 0 0 4.875 0 2.438 2.438 0 0 0-4.875 0z" transform="translate(.656 4.313)"/>
+                      </svg>
+                    </div>
+                    <div className="flex-1">
+                      <p className="text-xl font-semibold text-white">Outlook</p>
+                      <p className="text-sm text-gray-400">Sincronizzazione email</p>
+                    </div>
+                  </div>
+
+                  {/* POP/IMAP */}
+                  <div className="flex items-center gap-4 p-3 bg-slate-800/30 rounded-lg">
+                    <div className="w-10 h-10 bg-gradient-to-br from-gray-600 to-gray-700 rounded-lg flex items-center justify-center">
+                      <Mail className="w-5 h-5 text-white" />
+                    </div>
+                    <div className="flex-1">
+                      <p className="text-sm font-semibold text-white">POP / IMAP</p>
+                      <p className="text-xs text-gray-500">Altri provider email</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Calendar Integrations */}
+              <div className="bg-gradient-to-br from-slate-800/90 to-slate-900/90 backdrop-blur-sm p-8 rounded-2xl border border-purple-500/20 hover:border-purple-500/50 transition">
+                <div className="flex items-center gap-3 mb-6">
+                  <div className="w-12 h-12 bg-gradient-to-br from-purple-500 to-pink-500 rounded-lg flex items-center justify-center">
+                    <Calendar className="w-6 h-6 text-white" />
+                  </div>
+                  <h3 className="text-2xl font-bold text-white">Calendario</h3>
+                </div>
+
+                <div className="space-y-4">
+                  {/* Google Calendar */}
+                  <div className="flex items-center gap-4 p-4 bg-slate-800/50 rounded-xl hover:bg-slate-700/50 transition">
+                    <div className="w-16 h-16 bg-white rounded-lg flex items-center justify-center shadow-lg">
+                      <svg viewBox="0 0 24 24" className="w-10 h-10">
+                        <path fill="#1A73E8" d="M5.243 4.5h13.514c.395 0 .743.322.743.717v13.566a.73.73 0 0 1-.743.717H5.243a.73.73 0 0 1-.743-.717V5.217c0-.395.348-.717.743-.717z"/>
+                        <path fill="#FFF" d="M19.5 7.5v-2c0-.55-.45-1-1-1h-2v2h2v2h1zM7.5 17.5h-2v-2h-2v2c0 .55.45 1 1 1h2v-1zM5.5 6.5h2v-2h-2c-.55 0-1 .45-1 1v2h1v-1z"/>
+                        <path fill="#EA4335" d="M7.5 4.5h2v2h-2z"/>
+                        <path fill="#FBBC04" d="M4.5 6.5h2v2h-2z"/>
+                        <path fill="#34A853" d="M4.5 17.5h2v2h-2z"/>
+                        <path fill="#188038" d="M7.5 17.5h2v2h-2z"/>
+                        <path fill="#1967D2" d="M7.5 4.5h2v2h-2z"/>
+                        <path fill="#4285F4" d="M17.5 4.5h2v2h-2z"/>
+                        <path fill="#4285F4" d="M17.5 6.5h2v2h-2z"/>
+                        <rect fill="#4285F4" x="8" y="8" width="8" height="8" rx="1"/>
+                        <path fill="#FFF" d="M12 9.5v3.793l2.854 1.646-.5.867L11 13.5V9.5h1z"/>
+                      </svg>
+                    </div>
+                    <div className="flex-1">
+                      <p className="text-xl font-semibold text-white">Google Calendar</p>
+                      <p className="text-sm text-gray-400">Sincronizzazione calendario</p>
+                    </div>
+                  </div>
+
+                  {/* Outlook Calendar */}
+                  <div className="flex items-center gap-4 p-4 bg-slate-800/50 rounded-xl hover:bg-slate-700/50 transition">
+                    <div className="w-16 h-16 bg-white rounded-lg flex items-center justify-center shadow-lg">
+                      <svg viewBox="0 0 24 24" className="w-10 h-10">
+                        <path fill="#0078D4" d="M24 7.875v8.25A2.626 2.626 0 0 1 21.375 18.75h-7.312L14.25 12l-.187-6.75h7.312A2.626 2.626 0 0 1 24 7.875z"/>
+                        <path fill="#0364B8" d="M21.375 5.25h-7.312L14.25 12l-.187 6.75h7.312c.72 0 1.339-.288 1.8-.75L24 7.875a2.627 2.627 0 0 0-2.625-2.625z"/>
+                        <path fill="#0078D4" d="M14.063 5.25L8.25 1.5H3.375A2.626 2.626 0 0 0 .75 4.125v15.75A2.626 2.626 0 0 0 3.375 22.5H8.25l5.813-3.75V12z"/>
+                        <path fill="#28A8EA" d="M14.063 5.25H8.25v13.5h5.813V12z"/>
+                        <path fill="#0078D4" d="M8.25 1.5v4.5H3.375c-.72 0-1.339.288-1.8.75L.75 4.125A2.626 2.626 0 0 1 3.375 1.5z"/>
+                        <path fill="#0364B8" d="M8.25 18.75v3.75H3.375a2.626 2.626 0 0 1-2.625-2.625V17.25l.825-1.5c.461.462 1.08.75 1.8.75z"/>
+                        <path fill="#50D9FF" d="M8.25 5.25v13.5H3.375A2.626 2.626 0 0 1 .75 16.125V7.875A2.626 2.626 0 0 1 3.375 5.25z"/>
+                        <path fill="#FFF" d="M5.625 10.5h4.5v1.5h-4.5zm0 3h4.5V15h-4.5z"/>
+                      </svg>
+                    </div>
+                    <div className="flex-1">
+                      <p className="text-xl font-semibold text-white">Outlook Calendar</p>
+                      <p className="text-sm text-gray-400">Sincronizzazione calendario</p>
+                    </div>
+                  </div>
+
+                  {/* Apple Calendar */}
+                  <div className="flex items-center gap-4 p-4 bg-slate-800/50 rounded-xl hover:bg-slate-700/50 transition">
+                    <div className="w-16 h-16 bg-white rounded-lg flex items-center justify-center shadow-lg">
+                      <svg viewBox="0 0 24 24" className="w-10 h-10">
+                        <defs>
+                          <linearGradient id="apple-cal-gradient" x1="0%" y1="0%" x2="0%" y2="100%">
+                            <stop offset="0%" style={{ stopColor: '#FF3B30', stopOpacity: 1 }} />
+                            <stop offset="100%" style={{ stopColor: '#FF453A', stopOpacity: 1 }} />
+                          </linearGradient>
+                        </defs>
+                        <rect x="3" y="4" width="18" height="18" rx="3" fill="url(#apple-cal-gradient)"/>
+                        <rect x="3" y="4" width="18" height="6" fill="#FF2D20"/>
+                        <text x="12" y="18" fontFamily="Arial, sans-serif" fontSize="11" fontWeight="bold" fill="white" textAnchor="middle">{new Date().getDate()}</text>
+                      </svg>
+                    </div>
+                    <div className="flex-1">
+                      <p className="text-xl font-semibold text-white">Apple Calendar</p>
+                      <p className="text-sm text-gray-400">Sincronizzazione calendario</p>
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
           </div>

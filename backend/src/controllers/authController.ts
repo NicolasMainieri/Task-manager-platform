@@ -5,6 +5,7 @@ import prisma from "../config/database";
 import { AuthRequest } from "../middleware/auth";
 import { parseJsonField, stringifyJsonField } from "../utils/jsonHelper";
 import companyService from "../services/companyService";
+import penaltyService from "../services/penalty.service";
 
 class AuthController {
   // 🆕 Registrazione Azienda
@@ -156,11 +157,19 @@ class AuthController {
       const isValid = await bcrypt.compare(password, user.password);
       if (!isValid) return res.status(401).json({ error: "Credenziali non valide" });
 
+      // Assegna bonus login giornaliero
+      try {
+        await penaltyService.loginBonus(user.id);
+      } catch (bonusError) {
+        console.error('Errore assegnazione bonus login:', bonusError);
+        // Non blocchiamo il login se il bonus fallisce
+      }
+
       const secret = process.env.JWT_SECRET;
       if (!secret) throw new Error("JWT_SECRET non configurato");
       const token = jwt.sign({ userId: user.id }, secret);
       const { password: _, ...userWithoutPassword } = user;
-      
+
       const userWithParsedPermessi = {
         ...userWithoutPassword,
         role: {
@@ -168,7 +177,7 @@ class AuthController {
           permessi: parseJsonField(userWithoutPassword.role.permessi)
         }
       };
-      
+
       res.json({ user: userWithParsedPermessi, token });
     } catch (error: any) {
       res.status(500).json({ error: error.message });

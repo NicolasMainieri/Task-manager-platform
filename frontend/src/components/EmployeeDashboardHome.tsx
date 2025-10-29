@@ -104,16 +104,37 @@ const EmployeeDashboardHome: React.FC<Props> = ({ user, onNavigate }) => {
           headers: { Authorization: `Bearer ${token}` }
         }).catch(() => ({ data: null })),
 
-        axios.get(`${API_URL}/tasks/my?priorita=alta&stato=todo,in_progress&limit=3`, {
+        axios.get(`${API_URL}/tasks/my-tasks`, {
           headers: { Authorization: `Bearer ${token}` }
+        }).then(res => {
+          const allTasks = res.data.tutte || [];
+          return {
+            data: allTasks
+              .filter((t: any) => t.priorita === 'alta' && (t.stato === 'todo' || t.stato === 'in_progress'))
+              .slice(0, 3)
+          };
         }).catch(() => ({ data: [] })),
 
-        axios.get(`${API_URL}/tasks/my?stato=in_progress&limit=5`, {
+        axios.get(`${API_URL}/tasks/my-tasks`, {
           headers: { Authorization: `Bearer ${token}` }
+        }).then(res => {
+          const allTasks = res.data.tutte || [];
+          return {
+            data: allTasks
+              .filter((t: any) => t.stato === 'in_progress')
+              .slice(0, 5)
+          };
         }).catch(() => ({ data: [] })),
 
-        axios.get(`${API_URL}/tasks/my?stato=completato&today=true&limit=5`, {
+        axios.get(`${API_URL}/tasks/my-tasks`, {
           headers: { Authorization: `Bearer ${token}` }
+        }).then(res => {
+          const todayTasks = res.data.oggi || [];
+          return {
+            data: todayTasks
+              .filter((t: any) => t.stato === 'completato')
+              .slice(0, 5)
+          };
         }).catch(() => ({ data: [] })),
 
         axios.get(`${API_URL}/calendar/my-events?limit=5`, {
@@ -137,6 +158,7 @@ const EmployeeDashboardHome: React.FC<Props> = ({ user, onNavigate }) => {
         }).catch(() => ({ data: [] }))
       ]);
 
+      console.log('[Dashboard] Stats ricevute:', statsRes.data);
       setStats(statsRes.data || {
         tasksToday: 0,
         score: 0,
@@ -150,7 +172,27 @@ const EmployeeDashboardHome: React.FC<Props> = ({ user, onNavigate }) => {
       setRecentEmails(Array.isArray(emailsRes.data) ? emailsRes.data : []);
       setUpcomingCalls(Array.isArray(callsRes.data) ? callsRes.data : []);
       setNotifications(Array.isArray(notificationsRes.data) ? notificationsRes.data : []);
-      setWeeklyProgress(Array.isArray(progressRes.data) ? progressRes.data : [0, 0, 0, 0, 0, 0, 0]);
+
+      // Converti l'oggetto progress in array di numeri
+      let progressArray: number[] = [0, 0, 0, 0, 0, 0, 0];
+      if (Array.isArray(progressRes.data)) {
+        progressArray = progressRes.data.map((item: any) => {
+          if (typeof item === 'number') return item;
+          if (item && typeof item === 'object' && 'completed' in item) {
+            return item.completed || 0;
+          }
+          return 0;
+        });
+      } else if (progressRes.data && typeof progressRes.data === 'object') {
+        progressArray = Object.values(progressRes.data).map((item: any) => {
+          if (typeof item === 'number') return item;
+          if (item && typeof item === 'object' && 'completed' in item) {
+            return item.completed || 0;
+          }
+          return 0;
+        }).slice(0, 7);
+      }
+      setWeeklyProgress(progressArray);
     } catch (error) {
       console.error('Errore caricamento dashboard:', error);
     } finally {
@@ -203,16 +245,25 @@ const EmployeeDashboardHome: React.FC<Props> = ({ user, onNavigate }) => {
         </p>
         <div className="grid grid-cols-3 gap-4">
           <div className="bg-white/10 backdrop-blur-sm rounded-lg p-3">
-            <p className="text-indigo-100 text-sm">Score</p>
-            <p className="text-2xl font-bold">{stats?.score || 0}</p>
+            <div className="flex items-center gap-2 mb-1">
+              <Trophy className="w-4 h-4 text-yellow-300" />
+              <p className="text-indigo-100 text-sm">Score Totale</p>
+            </div>
+            <p className="text-3xl font-bold text-white">{stats?.score || 0} <span className="text-sm text-indigo-200">pt</span></p>
           </div>
           <div className="bg-white/10 backdrop-blur-sm rounded-lg p-3">
-            <p className="text-indigo-100 text-sm">Classifica</p>
-            <p className="text-2xl font-bold">#{stats?.ranking || 0}</p>
+            <div className="flex items-center gap-2 mb-1">
+              <TrendingUp className="w-4 h-4 text-green-300" />
+              <p className="text-indigo-100 text-sm">Classifica</p>
+            </div>
+            <p className="text-3xl font-bold text-white">#{stats?.ranking || '-'}</p>
           </div>
           <div className="bg-white/10 backdrop-blur-sm rounded-lg p-3">
-            <p className="text-indigo-100 text-sm">Completati oggi</p>
-            <p className="text-2xl font-bold">{stats?.completedToday || 0}</p>
+            <div className="flex items-center gap-2 mb-1">
+              <CheckCircle2 className="w-4 h-4 text-blue-300" />
+              <p className="text-indigo-100 text-sm">Completati oggi</p>
+            </div>
+            <p className="text-3xl font-bold text-white">{stats?.completedToday || 0}</p>
           </div>
         </div>
       </div>

@@ -2,8 +2,9 @@ import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 import { io, Socket } from 'socket.io-client';
 import Peer from 'simple-peer';
-import { Video, VideoOff, Mic, MicOff, PhoneOff, MessageSquare, Users, Calendar, Clock, Settings, X, Plus, Send, ExternalLink, Trash2, Edit, Smile, ChevronDown } from 'lucide-react';
+import { Video, VideoOff, Mic, MicOff, PhoneOff, MessageSquare, Users, Calendar, Clock, Settings, X, Plus, Send, ExternalLink, Trash2, Edit, Smile, ChevronDown, Sparkles, FileText } from 'lucide-react';
 import EmojiPicker from 'emoji-picker-react';
+import VoiceNoteRecorder from '../components/VoiceNoteRecorder';
 
 const API_URL = 'http://localhost:4000/api';
 
@@ -82,6 +83,14 @@ const VideoCallPage: React.FC = () => {
   const [showNewRoomModal, setShowNewRoomModal] = useState(false);
   const [showEditMeetingModal, setShowEditMeetingModal] = useState(false);
   const [editingMeeting, setEditingMeeting] = useState<Room | null>(null);
+
+  // AI features state
+  const [isRecordingMeeting, setIsRecordingMeeting] = useState(false);
+  const [meetingRecorder, setMeetingRecorder] = useState<MediaRecorder | null>(null);
+  const [meetingAudioChunks, setMeetingAudioChunks] = useState<Blob[]>([]);
+  const [recordingStartTime, setRecordingStartTime] = useState<number>(0);
+  const [recordingDuration, setRecordingDuration] = useState<number>(0);
+  const [isGeneratingNotes, setIsGeneratingNotes] = useState(false);
 
   // Media test modal
   const [showMediaTestModal, setShowMediaTestModal] = useState(false);
@@ -774,6 +783,170 @@ const VideoCallPage: React.FC = () => {
     setShowChat(true);
   };
 
+  // Timer effect for recording duration
+  useEffect(() => {
+    let interval: NodeJS.Timeout | null = null;
+    if (isRecordingMeeting && recordingStartTime > 0) {
+      interval = setInterval(() => {
+        setRecordingDuration(Math.floor((Date.now() - recordingStartTime) / 1000));
+      }, 1000);
+    }
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [isRecordingMeeting, recordingStartTime]);
+
+  // Start/Stop meeting recording with AI
+  const handleToggleMeetingRecording = async () => {
+    if (!currentRoom) return;
+
+    if (!isRecordingMeeting) {
+      // Start recording
+      try {
+        // Capture system audio + microphone
+        const stream = await navigator.mediaDevices.getUserMedia({
+          audio: {
+            echoCancellation: true,
+            noiseSuppression: true,
+            sampleRate: 44100
+          }
+        });
+
+        const mimeType = MediaRecorder.isTypeSupported('audio/webm')
+          ? 'audio/webm'
+          : MediaRecorder.isTypeSupported('audio/mp4')
+          ? 'audio/mp4'
+          : 'audio/ogg';
+
+        const recorder = new MediaRecorder(stream, { mimeType });
+        const chunks: Blob[] = [];
+
+        recorder.ondataavailable = (e) => {
+          if (e.data.size > 0) {
+            chunks.push(e.data);
+          }
+        };
+
+        recorder.onstop = async () => {
+          stream.getTracks().forEach(track => track.stop());
+
+          // Create audio blob
+          const audioBlob = new Blob(chunks, { type: mimeType });
+
+          // Send to backend for transcription and analysis
+          await processRecordedMeeting(audioBlob);
+        };
+
+        recorder.start();
+        setMeetingRecorder(recorder);
+        setMeetingAudioChunks(chunks);
+        setIsRecordingMeeting(true);
+        setRecordingStartTime(Date.now());
+        setRecordingDuration(0);
+
+        console.log('🎙️ Started meeting recording');
+      } catch (error: any) {
+        console.error('Errore avvio registrazione:', error);
+        alert('Impossibile avviare la registrazione: ' + error.message);
+      }
+    } else {
+      // Stop recording
+      if (meetingRecorder && meetingRecorder.state === 'recording') {
+        meetingRecorder.stop();
+        setIsRecordingMeeting(false);
+        setMeetingRecorder(null);
+        console.log('⏹️ Stopped meeting recording');
+      }
+    }
+  };
+
+  // Process recorded meeting audio
+  const processRecordedMeeting = async (audioBlob: Blob) => {
+    if (!currentRoom) return;
+
+    try {
+      // Show processing message
+      alert('⏳ Elaborazione registrazione in corso...\n\nStto trascrivendo l\'audio e generando il riassunto AI. Questo potrebbe richiedere alcuni minuti.');
+
+      // Upload audio for transcription
+      const formData = new FormData();
+      formData.append('audio', audioBlob, `meeting-${currentRoom.id}-${Date.now()}.webm`);
+      formData.append('language', 'it');
+      formData.append('videoCallId', currentRoom.id);
+
+      const transcriptionRes = await axios.post(
+        `${API_URL}/notes/transcribe`,
+        formData,
+        {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'multipart/form-data'
+          }
+        }
+      );
+
+      const { transcription, analysis } = transcriptionRes.data;
+
+      // Show results
+      const summaryText = `
+✅ RIASSUNTO MEETING COMPLETATO
+
+📝 Trascrizione:
+${transcription.text.substring(0, 200)}${transcription.text.length > 200 ? '...' : ''}
+
+🎯 Punti Chiave (${analysis.keyPoints.length}):
+${analysis.keyPoints.map((point: string, index: number) => `${index + 1}. ${point}`).join('\n')}
+
+✅ Action Items (${analysis.actionItems.length}):
+${analysis.actionItems.map((item: string) => `• ${item}`).join('\n')}
+
+⏱️ Durata: ${Math.floor(recordingDuration / 60)}m ${recordingDuration % 60}s
+
+La nota completa è stata salvata nella sezione Note.
+      `.trim();
+
+      alert(summaryText);
+      console.log('Meeting recording processed:', transcriptionRes.data);
+    } catch (error: any) {
+      console.error('Errore elaborazione registrazione:', error);
+      alert(`Errore: ${error.response?.data?.error || 'Impossibile elaborare la registrazione'}`);
+    } finally {
+      setRecordingStartTime(0);
+      setRecordingDuration(0);
+    }
+  };
+
+  // Generate and save meeting notes with AI
+  const handleGenerateNotes = async () => {
+    if (!currentRoom) return;
+
+    setIsGeneratingNotes(true);
+    try {
+      const response = await axios.post(
+        `${API_URL}/notes/meeting/${currentRoom.id}/notes`,
+        {},
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+
+      const { note, summary, actionItems, keyPoints } = response.data;
+
+      alert(`✅ Note salvate con successo!
+
+📄 Nota: ${note.titolo}
+🎯 ${keyPoints.length} punti chiave estratti
+✅ ${actionItems.length} action items identificati
+
+Le note complete sono state salvate e sono disponibili nella sezione Note.`);
+
+      console.log('Meeting notes saved:', response.data);
+    } catch (error: any) {
+      console.error('Errore generazione note:', error);
+      alert(`Errore: ${error.response?.data?.error || 'Impossibile generare le note'}`);
+    } finally {
+      setIsGeneratingNotes(false);
+    }
+  };
+
   // Toggle user selection
   const toggleUserSelection = (userId: string, mode: 'instant' | 'schedule' | 'edit' = 'instant') => {
     if (mode === 'schedule') {
@@ -906,7 +1079,63 @@ const VideoCallPage: React.FC = () => {
           </div>
 
           {/* Controls */}
-          <div className="mt-4 flex items-center justify-center gap-4">
+          <div className="mt-4 space-y-3">
+            {/* Pulsanti AI e Registrazione Vocale */}
+            <div className="flex items-center justify-center gap-3">
+              <VoiceNoteRecorder
+                videoCallId={currentRoom.id}
+                onTranscriptionComplete={(data) => {
+                  const actionItemsCount = data.analysis?.actionItems?.length || 0;
+                  alert(`✅ Trascrizione completata!\n\nNota salvata con ${actionItemsCount} action items.`);
+                }}
+              />
+
+              <button
+                className={`flex items-center gap-2 px-4 py-2 ${
+                  isRecordingMeeting
+                    ? 'bg-red-600 hover:bg-red-700 animate-pulse'
+                    : 'bg-purple-600 hover:bg-purple-700'
+                } text-white rounded-lg transition-colors`}
+                title={isRecordingMeeting ? "Ferma registrazione e genera riassunto" : "Inizia registrazione meeting con AI"}
+                onClick={handleToggleMeetingRecording}
+              >
+                {isRecordingMeeting ? (
+                  <>
+                    <div className="w-5 h-5 bg-white rounded-full animate-pulse" />
+                    <span className="hidden sm:inline">
+                      Stop {Math.floor(recordingDuration / 60)}:{String(recordingDuration % 60).padStart(2, '0')}
+                    </span>
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="w-5 h-5" />
+                    <span className="hidden sm:inline">AI Riassunto</span>
+                  </>
+                )}
+              </button>
+
+              <button
+                className={`flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors ${isGeneratingNotes ? 'opacity-50 cursor-not-allowed' : ''}`}
+                title="Genera note strutturate"
+                onClick={handleGenerateNotes}
+                disabled={isGeneratingNotes}
+              >
+                {isGeneratingNotes ? (
+                  <>
+                    <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    <span className="hidden sm:inline">Salvando...</span>
+                  </>
+                ) : (
+                  <>
+                    <FileText className="w-5 h-5" />
+                    <span className="hidden sm:inline">Note AI</span>
+                  </>
+                )}
+              </button>
+            </div>
+
+            {/* Controlli Video/Audio */}
+            <div className="flex items-center justify-center gap-4">
             {/* Audio control with dropdown */}
             <div className="relative">
               <div className="flex items-center gap-1">
@@ -1010,6 +1239,7 @@ const VideoCallPage: React.FC = () => {
             >
               <PhoneOff className="w-6 h-6" />
             </button>
+            </div>
           </div>
         </div>
 

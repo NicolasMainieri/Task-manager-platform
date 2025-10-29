@@ -12,15 +12,27 @@ import Settings from "./Settings";
 import AdminDashboardHome from "../components/AdminDashboardHome";
 import TicketManagement from "../components/TicketManagement";
 import UserManagement from "../components/UserManagement";
+import AdminRewardsManagement from "../components/AdminRewardsManagement";
+import ChatWithTabs from "../components/ChatWithTabs";
+import Contacts from "../components/Contacts";
+import ContactMentionInput from "../components/ContactMentionInput";
+import NotificationBadge from "../components/NotificationBadge";
+import { useNotificationCounts } from "../hooks/useNotificationCounts";
 import ChatbotWidget from "../components/ChatbotWidget";
 import TutorialOverlay from "../components/TutorialOverlay";
 import { adminTutorialSteps } from "../data/adminTutorialSteps";
+import ProjectsPage from "./ProjectsPage";
+import Drive from "./Drive";
+import CRMPage from "./CRMPage";
+import TaskHistoryAdmin from "../components/TaskHistoryAdmin";
+import RealProgressCharts from "../components/RealProgressCharts";
 import {
   Copy, Check, LogOut, Users, CheckCircle, XCircle, LayoutDashboard, ListTodo,
   TrendingUp, Trophy, Brain, Menu, X, Target, Plus, Edit, Trash2, UserPlus,
   Calendar, Clock, Award, Mail, Phone, MapPin, Briefcase, Star, ArrowUp, ArrowDown,
   Bell, MessageSquare, Inbox, Ticket, Send, Video, Settings as SettingsIcon, Loader2,
-  AlertCircle, TrendingDown, Zap, BarChart3, Activity, HelpCircle
+  AlertCircle, TrendingDown, Zap, BarChart3, Activity, HelpCircle, Gift, FolderOpen, BookUser, HardDrive,
+  Database
 } from "lucide-react";
 
 // Types
@@ -144,6 +156,7 @@ const AdminPanelComplete: React.FC = () => {
 
   // State
   const [activeView, setActiveView] = useState('dashboard');
+  const { counts: notificationCounts } = useNotificationCounts();
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [companyCode, setCompanyCode] = useState<string>("");
   const [companyName, setCompanyName] = useState<string>("");
@@ -159,6 +172,7 @@ const AdminPanelComplete: React.FC = () => {
 
   // New state for requests, calendar, email
   const [requests, setRequests] = useState<Request[]>([]);
+  const [rewardRedemptions, setRewardRedemptions] = useState<any[]>([]);
   const [calendarEvents, setCalendarEvents] = useState<CalendarEvent[]>([]);
   const [emails, setEmails] = useState<EmailType[]>([]);
 
@@ -169,7 +183,7 @@ const AdminPanelComplete: React.FC = () => {
   const [showEmployeeModal, setShowEmployeeModal] = useState(false);
   const [newTask, setNewTask] = useState({
     titolo: '', descrizione: '', stato: 'todo', priorita: 'medium',
-    difficolta: 3, scadenza: '', assignedTo: [] as string[], assignedTeam: ''
+    difficolta: 3, scadenza: '', assignedTo: [] as string[], assignedTeam: '', contactIds: [] as string[]
   });
   const [newTeam, setNewTeam] = useState({
     nome: '', descrizione: '', colore: '#3B82F6'
@@ -233,6 +247,7 @@ const AdminPanelComplete: React.FC = () => {
       fetchNotifications(),
       fetchRoles(),
       fetchRequests(),
+      fetchRewardRedemptions(),
       fetchCalendarEvents(),
       fetchEmails()
     ]);
@@ -250,6 +265,40 @@ const AdminPanelComplete: React.FC = () => {
       }
     } catch (error) {
       console.error("Error fetching requests:", error);
+    }
+  };
+
+  const fetchRewardRedemptions = async () => {
+    try {
+      const response = await fetch("http://localhost:4000/api/rewards/redemptions/pending", {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setRewardRedemptions(data);
+      }
+    } catch (error) {
+      console.error("Error fetching reward redemptions:", error);
+    }
+  };
+
+  const handleRewardRedemptionAction = async (redemptionId: string, stato: 'approved' | 'rejected', adminNote?: string) => {
+    try {
+      const response = await fetch(`http://localhost:4000/api/rewards/redemptions/${redemptionId}`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ stato, adminNote })
+      });
+      if (response.ok) {
+        await fetchRewardRedemptions();
+        alert(`Richiesta premio ${stato === 'approved' ? 'approvata' : 'rifiutata'} con successo!`);
+      }
+    } catch (error) {
+      console.error('Error updating redemption:', error);
+      alert('Errore nell\'aggiornamento della richiesta');
     }
   };
 
@@ -556,7 +605,7 @@ const AdminPanelComplete: React.FC = () => {
       if (response.ok) {
         await fetchTasks();
         setShowTaskModal(false);
-        setNewTask({ titolo: '', descrizione: '', stato: 'todo', priorita: 'medium', difficolta: 3, scadenza: '', assignedTo: [], assignedTeam: '' });
+        setNewTask({ titolo: '', descrizione: '', stato: 'todo', priorita: 'medium', difficolta: 3, scadenza: '', assignedTo: [], assignedTeam: '', contactIds: [] });
       }
     } catch (error) {
       console.error("Error creating task:", error);
@@ -622,8 +671,14 @@ const AdminPanelComplete: React.FC = () => {
     { id: 'dashboard', icon: LayoutDashboard, label: 'Dashboard' },
     { id: 'employees', icon: Users, label: 'Tutti i Dipendenti' },
     { id: 'tasks', icon: ListTodo, label: 'Tasks' },
+    { id: 'projects', icon: FolderOpen, label: 'Progetti' },
+    { id: 'drive', icon: HardDrive, label: 'Drive' },
+    { id: 'crm', icon: Database, label: 'CRM' },
     { id: 'requests', icon: MessageSquare, label: 'Richieste Dipendenti' },
+    { id: 'chat', icon: Send, label: 'Chat' },
+    { id: 'contacts', icon: BookUser, label: 'Contatti' },
     { id: 'tickets', icon: Ticket, label: 'Ticket' },
+    { id: 'rewards', icon: Gift, label: 'Premi' },
     { id: 'videocall', icon: Video, label: 'Videochiamate' },
     { id: 'teams', icon: UserPlus, label: 'Team' },
     { id: 'calendar', icon: Calendar, label: 'Calendario' },
@@ -673,8 +728,66 @@ const AdminPanelComplete: React.FC = () => {
                   isActive ? 'bg-gradient-to-r from-indigo-500 to-purple-500 text-white shadow-lg' : 'text-gray-400 hover:bg-white/5 hover:text-white'
                 }`}
               >
-                <Icon className="w-5 h-5" />
-                {sidebarOpen && <span className="font-medium">{item.label}</span>}
+                <div className="relative">
+                  <Icon className="w-5 h-5" />
+                  {!sidebarOpen && (
+                    <>
+                      {item.id === 'tasks' && <NotificationBadge count={notificationCounts.tasks} />}
+                      {item.id === 'projects' && <NotificationBadge count={notificationCounts.projects} />}
+                      {item.id === 'chat' && <NotificationBadge count={notificationCounts.chat + notificationCounts.directMessages} />}
+                      {item.id === 'tickets' && <NotificationBadge count={notificationCounts.tickets} />}
+                      {item.id === 'rewards' && <NotificationBadge count={notificationCounts.rewards} />}
+                      {item.id === 'calendar' && <NotificationBadge count={notificationCounts.calendar} />}
+                      {item.id === 'email' && <NotificationBadge count={notificationCounts.email} />}
+                      {item.id === 'requests' && <NotificationBadge count={notificationCounts.requests} />}
+                    </>
+                  )}
+                </div>
+                {sidebarOpen && (
+                  <>
+                    <span className="font-medium flex-1 text-left">{item.label}</span>
+                    {item.id === 'tasks' && notificationCounts.tasks > 0 && (
+                      <span className="text-xs bg-red-500 text-white font-bold px-2 py-0.5 rounded-full">
+                        {notificationCounts.tasks}
+                      </span>
+                    )}
+                    {item.id === 'projects' && notificationCounts.projects > 0 && (
+                      <span className="text-xs bg-orange-500 text-white font-bold px-2 py-0.5 rounded-full">
+                        {notificationCounts.projects}
+                      </span>
+                    )}
+                    {item.id === 'chat' && (notificationCounts.chat + notificationCounts.directMessages) > 0 && (
+                      <span className="text-xs bg-red-500 text-white font-bold px-2 py-0.5 rounded-full">
+                        {notificationCounts.chat + notificationCounts.directMessages}
+                      </span>
+                    )}
+                    {item.id === 'tickets' && notificationCounts.tickets > 0 && (
+                      <span className="text-xs bg-red-500 text-white font-bold px-2 py-0.5 rounded-full">
+                        {notificationCounts.tickets}
+                      </span>
+                    )}
+                    {item.id === 'rewards' && notificationCounts.rewards > 0 && (
+                      <span className="text-xs bg-red-500 text-white font-bold px-2 py-0.5 rounded-full">
+                        {notificationCounts.rewards}
+                      </span>
+                    )}
+                    {item.id === 'calendar' && notificationCounts.calendar > 0 && (
+                      <span className="text-xs bg-blue-500 text-white font-bold px-2 py-0.5 rounded-full">
+                        {notificationCounts.calendar}
+                      </span>
+                    )}
+                    {item.id === 'email' && notificationCounts.email > 0 && (
+                      <span className="text-xs bg-red-500 text-white font-bold px-2 py-0.5 rounded-full">
+                        {notificationCounts.email}
+                      </span>
+                    )}
+                    {item.id === 'requests' && notificationCounts.requests > 0 && (
+                      <span className="text-xs bg-orange-500 text-white font-bold px-2 py-0.5 rounded-full">
+                        {notificationCounts.requests}
+                      </span>
+                    )}
+                  </>
+                )}
               </button>
             );
           })}
@@ -899,37 +1012,47 @@ const AdminPanelComplete: React.FC = () => {
 
               {/* Progress View */}
               {activeView === 'progress' && (
-                <div>
-                  <h1 className="text-3xl font-bold text-white mb-8">Progressi</h1>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div className="bg-slate-800/50 backdrop-blur-sm border border-indigo-500/20 rounded-2xl p-6">
-                      <h3 className="text-white font-bold mb-4">Task Completati nel Tempo</h3>
-                      <div className="h-48 flex items-end justify-between gap-2">
-                        {[12, 19, 23, 31, 28, 35, 42].map((value, i) => (
-                          <div key={i} className="flex-1 bg-gradient-to-t from-indigo-500 to-purple-500 rounded-t" style={{ height: `${(value / 42) * 100}%` }} />
-                        ))}
-                      </div>
-                      <div className="flex justify-between text-gray-400 text-xs mt-2">
-                        <span>Lun</span><span>Mar</span><span>Mer</span><span>Gio</span><span>Ven</span><span>Sab</span><span>Dom</span>
-                      </div>
-                    </div>
-                    <div className="bg-slate-800/50 backdrop-blur-sm border border-indigo-500/20 rounded-2xl p-6">
-                      <h3 className="text-white font-bold mb-4">Performance Team</h3>
-                      <div className="space-y-3">
-                        {teams.slice(0, 5).map((team) => (
-                          <div key={team.id}>
-                            <div className="flex justify-between text-sm mb-1">
-                              <span className="text-gray-400">{team.nome}</span>
-                              <span className="text-white font-semibold">75%</span>
-                            </div>
-                            <div className="w-full bg-slate-700 rounded-full h-2">
-                              <div className="bg-gradient-to-r from-indigo-500 to-purple-500 h-2 rounded-full" style={{ width: '75%' }} />
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
+                <div className="space-y-8">
+                  {/* Header con pulsante Azzera Score */}
+                  <div className="flex justify-between items-center">
+                    <h1 className="text-3xl font-bold text-white">Progressi</h1>
+                    <button
+                      onClick={async () => {
+                        if (!confirm('Sei sicuro di voler azzerare tutti i punteggi? Questa azione è irreversibile!')) return;
+                        try {
+                          const response = await fetch(`${import.meta.env.VITE_API_URL}/api/analytics/reset-all-scores`, {
+                            method: 'POST',
+                            headers: {
+                              'Authorization': `Bearer ${localStorage.getItem('token')}`,
+                              'Content-Type': 'application/json'
+                            }
+                          });
+                          const data = await response.json();
+                          if (response.ok) {
+                            alert(data.message);
+                            window.location.reload();
+                          } else {
+                            alert('Errore: ' + data.error);
+                          }
+                        } catch (err) {
+                          alert('Errore nella richiesta');
+                        }
+                      }}
+                      className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors flex items-center gap-2"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                      Azzera Score di Tutti
+                    </button>
                   </div>
+
+                  {/* Grafici Performance */}
+                  <RealProgressCharts />
+
+                  {/* Divider */}
+                  <div className="border-t border-slate-700"></div>
+
+                  {/* Cronologia Task */}
+                  <TaskHistoryAdmin />
                 </div>
               )}
 
@@ -937,6 +1060,67 @@ const AdminPanelComplete: React.FC = () => {
               {activeView === 'requests' && (
                 <div>
                   <h1 className="text-3xl font-bold text-white mb-8">Richieste Dipendenti</h1>
+
+                  {/* Richieste Premi Section */}
+                  {rewardRedemptions.length > 0 && (
+                    <div className="mb-8">
+                      <h2 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
+                        <Gift className="w-5 h-5 text-amber-400" />
+                        Richieste Premi ({rewardRedemptions.length})
+                      </h2>
+                      <div className="space-y-4">
+                        {rewardRedemptions.map((redemption: any) => (
+                          <div key={redemption.id} className="bg-slate-800/50 backdrop-blur-sm border border-amber-500/20 rounded-2xl p-6">
+                            <div className="flex items-start justify-between mb-4">
+                              <div className="flex items-center gap-4">
+                                <div className="w-12 h-12 bg-gradient-to-br from-amber-500 to-orange-500 rounded-full flex items-center justify-center text-white font-bold">
+                                  <Gift className="w-6 h-6" />
+                                </div>
+                                <div>
+                                  <h3 className="text-white font-bold">{redemption.reward.nome}</h3>
+                                  <p className="text-gray-400 text-sm">{redemption.user.nome} {redemption.user.cognome}</p>
+                                  <p className="text-gray-500 text-xs">{redemption.user.email}</p>
+                                </div>
+                              </div>
+                              <div className="text-right">
+                                <div className="text-amber-400 font-bold text-lg mb-1">
+                                  {redemption.reward.costoScore} pts
+                                </div>
+                                <div className="text-gray-400 text-xs">
+                                  {new Date(redemption.createdAt).toLocaleDateString('it-IT')}
+                                </div>
+                              </div>
+                            </div>
+                            {redemption.reward.descrizione && (
+                              <p className="text-gray-300 text-sm mb-4">{redemption.reward.descrizione}</p>
+                            )}
+                            <div className="flex items-center gap-3">
+                              <button
+                                onClick={() => handleRewardRedemptionAction(redemption.id, 'approved')}
+                                className="flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg transition text-sm font-semibold"
+                              >
+                                <CheckCircle className="w-4 h-4" />
+                                Approva
+                              </button>
+                              <button
+                                onClick={() => handleRewardRedemptionAction(redemption.id, 'rejected', 'Richiesta rifiutata dall\'amministratore')}
+                                className="flex items-center gap-2 bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg transition text-sm font-semibold"
+                              >
+                                <XCircle className="w-4 h-4" />
+                                Rifiuta
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Richieste Standard Section */}
+                  <h2 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
+                    <MessageSquare className="w-5 h-5 text-indigo-400" />
+                    Richieste Generali ({requests.length})
+                  </h2>
                   <div className="space-y-4">
                     {requests.length > 0 ? (
                       requests.map((request) => (
@@ -1008,23 +1192,67 @@ const AdminPanelComplete: React.FC = () => {
 
                   {/* Calendar Integrations - External Services */}
                   <div className="mt-8 border-t border-indigo-500/20 pt-8">
-                    <h4 className="text-xl font-bold text-white mb-6">Integrazioni Esterne</h4>
-                    <div className="space-y-6">
-                      <div>
-                        <h5 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
-                          <span className="text-2xl">📅</span>
-                          Google Calendar
-                        </h5>
-                        <GoogleCalendarConnect />
-                      </div>
+                    <h4 className="text-2xl font-bold text-white mb-8 text-center">Sincronizza anche con</h4>
 
-                      <div>
-                        <h5 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
-                          <span className="text-2xl">📆</span>
-                          Outlook Calendar
-                        </h5>
-                        <OutlookCalendarConnect />
-                      </div>
+                    {/* Logo Row - Clickable */}
+                    <div className="flex items-center justify-center gap-6">
+                      <button
+                        onClick={() => {/* Trigger Google Calendar sync */}}
+                        className="flex flex-col items-center gap-3 bg-white rounded-2xl p-6 shadow-lg hover:shadow-2xl hover:scale-105 transition-all cursor-pointer group"
+                        title="Sincronizza Google Calendar"
+                      >
+                        <svg viewBox="0 0 24 24" className="w-16 h-16">
+                          <path fill="#1A73E8" d="M5.243 4.5h13.514c.395 0 .743.322.743.717v13.566a.73.73 0 0 1-.743.717H5.243a.73.73 0 0 1-.743-.717V5.217c0-.395.348-.717.743-.717z"/>
+                          <path fill="#FFF" d="M19.5 7.5v-2c0-.55-.45-1-1-1h-2v2h2v2h1zM7.5 17.5h-2v-2h-2v2c0 .55.45 1 1 1h2v-1zM5.5 6.5h2v-2h-2c-.55 0-1 .45-1 1v2h1v-1z"/>
+                          <path fill="#EA4335" d="M7.5 4.5h2v2h-2z"/>
+                          <path fill="#FBBC04" d="M4.5 6.5h2v2h-2z"/>
+                          <path fill="#34A853" d="M4.5 17.5h2v2h-2z"/>
+                          <path fill="#188038" d="M7.5 17.5h2v2h-2z"/>
+                          <path fill="#1967D2" d="M7.5 4.5h2v2h-2z"/>
+                          <path fill="#4285F4" d="M17.5 4.5h2v2h-2z"/>
+                          <path fill="#4285F4" d="M17.5 6.5h2v2h-2z"/>
+                          <rect fill="#4285F4" x="8" y="8" width="8" height="8" rx="1"/>
+                          <path fill="#FFF" d="M12 9.5v3.793l2.854 1.646-.5.867L11 13.5V9.5h1z"/>
+                        </svg>
+                        <span className="text-base font-semibold text-gray-800 group-hover:text-indigo-600 transition">Google Calendar</span>
+                      </button>
+
+                      <button
+                        onClick={() => {/* Trigger Outlook Calendar sync */}}
+                        className="flex flex-col items-center gap-3 bg-white rounded-2xl p-6 shadow-lg hover:shadow-2xl hover:scale-105 transition-all cursor-pointer group"
+                        title="Sincronizza Outlook Calendar"
+                      >
+                        <svg viewBox="0 0 24 24" className="w-16 h-16">
+                          <path fill="#0078D4" d="M24 7.875v8.25A2.626 2.626 0 0 1 21.375 18.75h-7.312L14.25 12l-.187-6.75h7.312A2.626 2.626 0 0 1 24 7.875z"/>
+                          <path fill="#0364B8" d="M21.375 5.25h-7.312L14.25 12l-.187 6.75h7.312c.72 0 1.339-.288 1.8-.75L24 7.875a2.627 2.627 0 0 0-2.625-2.625z"/>
+                          <path fill="#0078D4" d="M14.063 5.25L8.25 1.5H3.375A2.626 2.626 0 0 0 .75 4.125v15.75A2.626 2.626 0 0 0 3.375 22.5H8.25l5.813-3.75V12z"/>
+                          <path fill="#28A8EA" d="M14.063 5.25H8.25v13.5h5.813V12z"/>
+                          <path fill="#0078D4" d="M8.25 1.5v4.5H3.375c-.72 0-1.339.288-1.8.75L.75 4.125A2.626 2.626 0 0 1 3.375 1.5z"/>
+                          <path fill="#0364B8" d="M8.25 18.75v3.75H3.375a2.626 2.626 0 0 1-2.625-2.625V17.25l.825-1.5c.461.462 1.08.75 1.8.75z"/>
+                          <path fill="#50D9FF" d="M8.25 5.25v13.5H3.375A2.626 2.626 0 0 1 .75 16.125V7.875A2.626 2.626 0 0 1 3.375 5.25z"/>
+                          <path fill="#FFF" d="M5.625 10.5h4.5v1.5h-4.5zm0 3h4.5V15h-4.5z"/>
+                        </svg>
+                        <span className="text-base font-semibold text-gray-800 group-hover:text-indigo-600 transition">Outlook Calendar</span>
+                      </button>
+
+                      <button
+                        onClick={() => {/* Trigger Apple Calendar sync */}}
+                        className="flex flex-col items-center gap-3 bg-white rounded-2xl p-6 shadow-lg hover:shadow-2xl hover:scale-105 transition-all cursor-pointer group"
+                        title="Sincronizza Apple Calendar"
+                      >
+                        <svg viewBox="0 0 24 24" className="w-16 h-16">
+                          <defs>
+                            <linearGradient id="apple-cal-grad-admin" x1="0%" y1="0%" x2="0%" y2="100%">
+                              <stop offset="0%" style={{ stopColor: '#FF3B30', stopOpacity: 1 }} />
+                              <stop offset="100%" style={{ stopColor: '#FF453A', stopOpacity: 1 }} />
+                            </linearGradient>
+                          </defs>
+                          <rect x="3" y="4" width="18" height="18" rx="3" fill="url(#apple-cal-grad-admin)"/>
+                          <rect x="3" y="4" width="18" height="6" fill="#FF2D20"/>
+                          <text x="12" y="18" fontFamily="Arial, sans-serif" fontSize="11" fontWeight="bold" fill="white" textAnchor="middle">{new Date().getDate()}</text>
+                        </svg>
+                        <span className="text-base font-semibold text-gray-800 group-hover:text-indigo-600 transition">Apple Calendar</span>
+                      </button>
                     </div>
                   </div>
                 </div>
@@ -1033,32 +1261,61 @@ const AdminPanelComplete: React.FC = () => {
               {/* Email View */}
               {activeView === 'email' && (
                 <div>
-                  <h1 className="text-3xl font-bold text-white mb-8">Email Interne</h1>
+                  <div className="mb-12">
+                    <h3 className="text-2xl font-bold text-white mb-8 text-center">Sincronizza anche con</h3>
+                    <div className="flex items-center justify-center gap-6 mb-12">
+                      {/* Gmail */}
+                      <button
+                        onClick={() => {/* Trigger Gmail sync */}}
+                        className="flex flex-col items-center gap-3 bg-white rounded-2xl p-6 shadow-lg hover:shadow-2xl hover:scale-105 transition-all cursor-pointer group"
+                      >
+                        <svg viewBox="0 0 24 24" className="w-16 h-16">
+                          <path fill="#EA4335" d="M24 5.457v13.909c0 .904-.732 1.636-1.636 1.636h-3.819V11.73L12 16.64l-6.545-4.91v9.273H1.636A1.636 1.636 0 0 1 0 19.366V5.457c0-2.023 2.309-3.178 3.927-1.964L5.455 4.64 12 9.548l6.545-4.91 1.528-1.145C21.69 2.28 24 3.434 24 5.457z"/>
+                          <path fill="#FBBC05" d="M7.364 12.182L1.636 8.91V5.457c0-2.023 2.309-3.178 3.927-1.964L7.364 4.64"/>
+                          <path fill="#34A853" d="M16.636 12.182L22.364 8.91V5.457c0-2.023-2.309-3.178-3.927-1.964L16.636 4.64"/>
+                          <path fill="#C5221F" d="M7.364 12.182V21.09h9.272V12.182L12 16.64z"/>
+                        </svg>
+                        <span className="text-base font-semibold text-gray-800 group-hover:text-indigo-600 transition">Gmail</span>
+                      </button>
 
-                  {/* Email Integrations */}
-                  <div className="mb-8 space-y-6">
-                    <div>
-                      <h4 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
-                        <span className="text-2xl">📧</span>
-                        Gmail
-                      </h4>
-                      <GmailConnect />
-                    </div>
+                      {/* Outlook */}
+                      <button
+                        onClick={() => {/* Trigger Outlook sync */}}
+                        className="flex flex-col items-center gap-3 bg-white rounded-2xl p-6 shadow-lg hover:shadow-2xl hover:scale-105 transition-all cursor-pointer group"
+                      >
+                        <svg viewBox="0 0 24 24" className="w-16 h-16">
+                          <path fill="#0078D4" d="M24 7.875v8.25A2.626 2.626 0 0 1 21.375 18.75h-7.312L14.25 12l-.187-6.75h7.312A2.626 2.626 0 0 1 24 7.875z"/>
+                          <path fill="#0364B8" d="M21.375 5.25h-7.312L14.25 12l-.187 6.75h7.312c.72 0 1.339-.288 1.8-.75L24 7.875a2.627 2.627 0 0 0-2.625-2.625z"/>
+                          <path fill="#0078D4" d="M14.063 5.25L8.25 1.5H3.375A2.626 2.626 0 0 0 .75 4.125v15.75A2.626 2.626 0 0 0 3.375 22.5H8.25l5.813-3.75V12z"/>
+                          <path fill="#28A8EA" d="M14.063 5.25H8.25v13.5h5.813V12z"/>
+                          <path fill="#0078D4" d="M8.25 1.5v4.5H3.375c-.72 0-1.339.288-1.8.75L.75 4.125A2.626 2.626 0 0 1 3.375 1.5z"/>
+                          <path fill="#0364B8" d="M8.25 18.75v3.75H3.375a2.626 2.626 0 0 1-2.625-2.625V17.25l.825-1.5c.461.462 1.08.75 1.8.75z"/>
+                          <path fill="#14447D" d="M8.25 5.25v13.5H3.375A2.626 2.626 0 0 1 .75 16.125V7.875A2.626 2.626 0 0 1 3.375 5.25z"/>
+                          <path fill="#0078D4" opacity=".5" d="M13.875 5.25h-5.437v13.5h5.437c.419 0 .806-.104 1.156-.281V5.531a2.567 2.567 0 0 0-1.156-.281z"/>
+                          <path fill="#0078D4" opacity=".1" d="M13.313 6.375H8.25v11.25h5.063c.419 0 .806-.104 1.156-.281V6.656a2.567 2.567 0 0 0-1.156-.281z"/>
+                          <path fill="#0078D4" opacity=".2" d="M13.313 6.375H8.25v10.125h5.063c.419 0 .806-.104 1.156-.281V6.656a2.567 2.567 0 0 0-1.156-.281z"/>
+                          <path fill="#0078D4" opacity=".2" d="M12.75 6.375H8.25v10.125H12.75c.419 0 .806-.104 1.156-.281V6.656a2.567 2.567 0 0 0-1.156-.281z"/>
+                          <path fill="#0078D4" opacity=".3" d="M12.75 6.375H8.25V16.5H12.75c.419 0 .806-.104 1.156-.281V6.656a2.567 2.567 0 0 0-1.156-.281z"/>
+                          <radialGradient id="outlook-admin-email-grad" cx="5.332" cy="12.132" r="10.114" gradientUnits="userSpaceOnUse">
+                            <stop offset="0" stopColor="#1784d8"/>
+                            <stop offset="1" stopColor="#0864c5"/>
+                          </radialGradient>
+                          <path fill="url(#outlook-admin-email-grad)" d="M3.469 7.688A3.844 3.844 0 0 1 7.313 3.844a3.844 3.844 0 0 1 3.843 3.844 3.844 3.844 0 0 1-3.843 3.843 3.844 3.844 0 0 1-3.844-3.843zm1.406 0a2.438 2.438 0 0 0 4.875 0 2.438 2.438 0 0 0-4.875 0z" transform="translate(.656 4.313)"/>
+                        </svg>
+                        <span className="text-base font-semibold text-gray-800 group-hover:text-indigo-600 transition">Outlook</span>
+                      </button>
 
-                    <div>
-                      <h4 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
-                        <span className="text-2xl">📨</span>
-                        Outlook Email
-                      </h4>
-                      <OutlookEmailConnect />
-                    </div>
-
-                    <div>
-                      <h4 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
-                        <span className="text-2xl">⚙️</span>
-                        IMAP / POP3
-                      </h4>
-                      <ImapPop3Config />
+                      {/* POP/IMAP - smaller */}
+                      <button
+                        onClick={() => {/* Trigger POP/IMAP sync */}}
+                        className="flex flex-col items-center gap-3 bg-gray-700 rounded-2xl p-5 shadow-lg hover:shadow-2xl hover:scale-105 transition-all cursor-pointer group"
+                      >
+                        <svg viewBox="0 0 24 24" className="w-14 h-14" fill="none" stroke="white" strokeWidth="2">
+                          <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
+                          <polyline points="22,6 12,13 2,6"/>
+                        </svg>
+                        <span className="text-sm font-semibold text-white group-hover:text-gray-200 transition">POP/IMAP</span>
+                      </button>
                     </div>
                   </div>
 
@@ -1332,8 +1589,46 @@ const AdminPanelComplete: React.FC = () => {
                 </div>
               )}
 
+              {/* Projects View */}
+              {activeView === 'projects' && (
+                <div className="-mx-8 -my-8">
+                  <ProjectsPage />
+                </div>
+              )}
+
+              {/* Drive View */}
+              {activeView === 'drive' && (
+                <div className="-mx-8 -my-8">
+                  <Drive />
+                </div>
+              )}
+
+              {/* CRM View */}
+              {activeView === 'crm' && (
+                <div className="-mx-8 -my-8">
+                  <CRMPage />
+                </div>
+              )}
+
               {/* Tickets View */}
               {activeView === 'tickets' && <TicketManagement />}
+
+              {/* Chat View (includes Company Chat and Direct Messages) */}
+              {activeView === 'chat' && (
+                <div className="h-[calc(100vh-12rem)]">
+                  <ChatWithTabs />
+                </div>
+              )}
+
+              {/* Contacts View */}
+              {activeView === 'contacts' && (
+                <div className="h-[calc(100vh-12rem)]">
+                  <Contacts />
+                </div>
+              )}
+
+              {/* Rewards Management */}
+              {activeView === 'rewards' && <AdminRewardsManagement />}
             </>
           )}
         </div>
@@ -1409,7 +1704,7 @@ const AdminPanelComplete: React.FC = () => {
                       key={risposta.id}
                       className={`p-4 rounded-xl ${
                         risposta.isAdmin
-                          ? 'bg-indigo-500/10 border-l-4 border-indigo-500'
+                          ? 'bg-indigo-600/10 border-l-4 border-indigo-500'
                           : 'bg-slate-900/50 border-l-4 border-green-500'
                       }`}
                     >
@@ -1691,6 +1986,16 @@ const AdminPanelComplete: React.FC = () => {
                     </p>
                   )}
                 </div>
+              </div>
+
+              {/* Contatti */}
+              <div className="border-t border-indigo-500/20 pt-4">
+                <ContactMentionInput
+                  selectedContacts={newTask.contactIds}
+                  onChange={(contactIds) => setNewTask({ ...newTask, contactIds })}
+                  label="Contatti associati"
+                  placeholder="Cerca contatti da associare al task..."
+                />
               </div>
 
               <div className="flex gap-3 mt-6">
