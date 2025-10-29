@@ -1,8 +1,10 @@
 import OpenAI from "openai";
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY
-});
+const openai = process.env.OPENAI_API_KEY
+  ? new OpenAI({
+      apiKey: process.env.OPENAI_API_KEY
+    })
+  : null;
 
 // Eventi promozionali noti con date tipiche
 const PROMOTIONAL_EVENTS = {
@@ -236,6 +238,7 @@ Colori vivaci ma professionali, typography leggibile, design mobile-first.`;
 
     const userPrompt = buildNewsletterPrompt(prompt);
 
+    if (!openai) throw new Error("OpenAI API key non configurata");
     const response = await openai.chat.completions.create({
       model: "gpt-4",
       messages: [
@@ -271,6 +274,7 @@ Colori vivaci ma professionali, typography leggibile, design mobile-first.`;
  */
 export async function improveNewsletterContent(contenutoAttuale: string, obiettivo: string) {
   try {
+    if (!openai) throw new Error("OpenAI API key non configurata");
     const response = await openai.chat.completions.create({
       model: "gpt-4",
       messages: [
@@ -300,6 +304,7 @@ export async function improveNewsletterContent(contenutoAttuale: string, obietti
  */
 export async function suggestSubjectLines(tema: string, contenuto: string): Promise<string[]> {
   try {
+    if (!openai) throw new Error("OpenAI API key non configurata");
     const response = await openai.chat.completions.create({
       model: "gpt-4",
       messages: [

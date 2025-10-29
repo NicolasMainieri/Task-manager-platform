@@ -2,9 +2,11 @@ import axios from 'axios';
 import * as cheerio from 'cheerio';
 import OpenAI from 'openai';
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+const openai = process.env.OPENAI_API_KEY
+  ? new OpenAI({
+      apiKey: process.env.OPENAI_API_KEY,
+    })
+  : null;
 
 interface ProductData {
   nomeProdotto: string;
@@ -103,6 +105,7 @@ RISPOSTA:
 Restituisci SOLO il JSON, senza spiegazioni o markdown. JSON valido:`;
 
   try {
+    if (!openai) throw new Error("OpenAI API key non configurata");
     const completion = await openai.chat.completions.create({
       model: "gpt-4",
       messages: [
@@ -262,6 +265,7 @@ Scrivi 2-3 paragrafi professionali che:
 Scrivi in italiano professionale, tono persuasivo ma non invadente.`;
 
   try {
+    if (!openai) throw new Error("OpenAI API key non configurata");
     const completion = await openai.chat.completions.create({
       model: "gpt-4",
       messages: [

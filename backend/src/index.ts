@@ -85,10 +85,11 @@ app.use(
   }
 );
 
-const PORT = process.env.PORT || 4000;
+const PORT = parseInt(process.env.PORT || '4000', 10);
+const HOST = process.env.NODE_ENV === 'production' ? '0.0.0.0' : 'localhost';
 
-httpServer.listen(PORT, () => {
-  console.log(`🚀 Server avviato su porta ${PORT}`);
+httpServer.listen(PORT, HOST, () => {
+  console.log(`🚀 Server avviato su ${HOST}:${PORT}`);
   console.log(`📊 Ambiente: ${process.env.NODE_ENV}`);
   console.log(`🔗 API: http://localhost:${PORT}/api`);
   console.log(`✅ CORS abilitato per: ${ALLOWED_ORIGINS.join(', ')}`);
