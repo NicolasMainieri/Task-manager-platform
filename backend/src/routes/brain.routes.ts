@@ -4,14 +4,20 @@ import OpenAI from 'openai';
 
 const router = Router();
 
-// Inizializza OpenAI client
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY
-});
+// Inizializza OpenAI client (opzionale)
+const openai = process.env.OPENAI_API_KEY
+  ? new OpenAI({
+      apiKey: process.env.OPENAI_API_KEY
+    })
+  : null;
 
 // POST /api/brain - Richiesta al Brain AI
 router.post('/', authenticate, async (req: AuthRequest, res) => {
   try {
+    if (!openai) {
+      return res.status(503).json({ error: 'Brain AI non disponibile. OpenAI API key non configurata.' });
+    }
+
     const { prompt, model = 'gpt-4o-mini', conversationHistory = [] } = req.body;
 
     if (!prompt) {
