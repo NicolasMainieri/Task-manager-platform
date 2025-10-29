@@ -159,9 +159,8 @@ export async function createPromotionalTasks(companyId: string, userId: string) 
       // Verifica se il task esiste già
       const existingTask = await prisma.task.findFirst({
         where: {
-          companyId,
           titolo: { contains: `Newsletter ${event.name}` },
-          dataScadenza: {
+          scadenza: {
             gte: new Date(event.taskDate.getFullYear(), event.taskDate.getMonth(), event.taskDate.getDate()),
             lt: new Date(event.taskDate.getFullYear(), event.taskDate.getMonth(), event.taskDate.getDate() + 1)
           }
@@ -179,12 +178,11 @@ export async function createPromotionalTasks(companyId: string, userId: string) 
         data: {
           titolo: `📧 Newsletter ${event.name}`,
           descrizione: `${event.description}\n\nEvento: ${event.date.toLocaleDateString('it-IT', { day: 'numeric', month: 'long', year: 'numeric' })}\n\nRicorda di:\n- Creare design accattivante\n- Preparare offerte speciali\n- Testare su diversi client email\n- Inviare 7-10 giorni prima dell'evento`,
-          stato: 'da_fare',
-          priorita: 'alta',
-          dataScadenza: event.taskDate,
+          stato: 'todo',
+          priorita: 'high',
+          scadenza: event.taskDate,
           dataInizio: new Date(event.taskDate.getFullYear(), event.taskDate.getMonth(), event.taskDate.getDate() - 3), // 3 giorni prima
-          companyId,
-          creatorId: userId,
+          ownerId: userId,
           tags: stringifyJsonField(['newsletter', 'marketing', event.key])
         }
       });
