@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Menu, X, CheckCircle, Zap, Users, BarChart3, Brain, ArrowRight, Star, Mail, Calendar } from 'lucide-react';
+import { Menu, X, CheckCircle, Zap, Users, BarChart3, ArrowRight, Star, Mail, Calendar, FileText, MessageSquare, Video, FolderOpen, DollarSign, Bot, TrendingUp } from 'lucide-react';
 import LiquidEther from '../components/LiquidEther';
 
 // Utility functions
@@ -513,24 +513,64 @@ export default function LandingPage() {
 
   const features = [
     {
-      icon: <Brain className="w-6 h-6" />,
-      title: "AI-Powered Insights",
-      description: "Analisi intelligente delle performance e suggerimenti automatici per ottimizzare il workflow"
+      icon: <CheckCircle className="w-6 h-6" />,
+      title: "Gestione Task & Progetti",
+      description: "Task management completo con subtask, timer, priorità e workflow personalizzabili"
+    },
+    {
+      icon: <FileText className="w-6 h-6" />,
+      title: "Note & Documenti",
+      description: "Note intelligenti con AI, registrazione vocale, markdown e organizzazione avanzata"
     },
     {
       icon: <Users className="w-6 h-6" />,
-      title: "Team Collaboration",
-      description: "Gestione team avanzata con ruoli, permessi e assegnazioni intelligenti"
+      title: "CRM & Contatti",
+      description: "Gestione clienti e contatti con storico completo e integrazione email"
+    },
+    {
+      icon: <DollarSign className="w-6 h-6" />,
+      title: "Preventivi & Fatture",
+      description: "Genera preventivi professionali con AI, esporta in PDF/Excel automaticamente"
+    },
+    {
+      icon: <MessageSquare className="w-6 h-6" />,
+      title: "Chat & Messaggistica",
+      description: "Chat aziendale, messaggi diretti, canali team e videochiamate integrate"
+    },
+    {
+      icon: <Video className="w-6 h-6" />,
+      title: "Videoconferenze",
+      description: "Videocall illimitate con condivisione schermo, registrazione e trascrizione AI"
+    },
+    {
+      icon: <FolderOpen className="w-6 h-6" />,
+      title: "Drive & Storage",
+      description: "Archiviazione documenti sicura con cartelle condivise e controllo permessi"
+    },
+    {
+      icon: <Calendar className="w-6 h-6" />,
+      title: "Calendario Integrato",
+      description: "Calendario condiviso con eventi, sincronizzazione Google Calendar e promemoria"
+    },
+    {
+      icon: <Mail className="w-6 h-6" />,
+      title: "Newsletter AI",
+      description: "Crea newsletter professionali con intelligenza artificiale in pochi minuti"
+    },
+    {
+      icon: <Bot className="w-6 h-6" />,
+      title: "Brain AI Assistant",
+      description: "Assistente AI integrato per generare contenuti, analizzare dati e automatizzare"
+    },
+    {
+      icon: <TrendingUp className="w-6 h-6" />,
+      title: "Sistema Premi & Gamification",
+      description: "Motiva il team con punti, livelli, classifiche e premi riscattabili"
     },
     {
       icon: <BarChart3 className="w-6 h-6" />,
-      title: "Analytics Avanzate",
-      description: "Dashboard interattive con metriche in tempo reale e report personalizzabili"
-    },
-    {
-      icon: <Zap className="w-6 h-6" />,
-      title: "Automazione Smart",
-      description: "Automatizza task ripetitivi e workflow con regole intelligenti"
+      title: "Analytics & Report",
+      description: "Dashboard interattive con metriche real-time, grafici avanzati e export dati"
     }
   ];
 
@@ -964,17 +1004,17 @@ export default function LandingPage() {
               </p>
             </div>
 
-            <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-8">
+            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
               {features.map((feature, index) => (
-                <div 
+                <div
                   key={index}
-                  className="bg-gradient-to-br from-slate-800/90 to-slate-900/90 backdrop-blur-sm p-6 rounded-2xl border border-purple-500/20 hover:border-purple-500/50 transition group hover:shadow-xl hover:shadow-purple-500/20"
+                  className="bg-gradient-to-br from-slate-800/90 to-slate-900/90 backdrop-blur-sm p-6 rounded-2xl border border-purple-500/20 hover:border-purple-500/50 transition-all duration-300 group hover:shadow-xl hover:shadow-purple-500/20 hover:-translate-y-1"
                 >
-                  <div className="w-12 h-12 bg-gradient-to-br from-purple-500 to-pink-500 rounded-lg flex items-center justify-center mb-4 group-hover:scale-110 transition text-white">
+                  <div className="w-12 h-12 bg-gradient-to-br from-purple-500 to-pink-500 rounded-lg flex items-center justify-center mb-4 group-hover:scale-110 transition-transform duration-300 text-white">
                     {feature.icon}
                   </div>
                   <h3 className="text-xl font-semibold text-white mb-2">{feature.title}</h3>
-                  <p className="text-gray-400">{feature.description}</p>
+                  <p className="text-gray-400 text-sm leading-relaxed">{feature.description}</p>
                 </div>
               ))}
             </div>
