@@ -1,5 +1,6 @@
 // API Configuration
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000';
+const API_BASE_URL = import.meta.env.VITE_API_URL ||
+  (import.meta.env.PROD ? 'https://task-manager-platform.onrender.com' : 'http://localhost:4000');
 
 console.log('🔧 API Config:', {
   VITE_API_URL: import.meta.env.VITE_API_URL,
