@@ -1,9 +1,7 @@
-// API Configuration
-const API_BASE_URL = import.meta.env.VITE_API_URL ||
-  (import.meta.env.PROD ? 'https://task-manager-platform.onrender.com' : 'http://localhost:4000');
+// API Configuration - Produzione
+const API_BASE_URL = 'https://task-manager-platform.onrender.com';
 
 console.log('🔧 API Config:', {
-  VITE_API_URL: import.meta.env.VITE_API_URL,
   API_BASE_URL,
   MODE: import.meta.env.MODE,
   PROD: import.meta.env.PROD
