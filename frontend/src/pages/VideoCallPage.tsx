@@ -112,6 +112,9 @@ const VideoCallPage: React.FC = () => {
   const [scheduleMeetingTime, setScheduleMeetingTime] = useState('');
   const [scheduleSelectedUsers, setScheduleSelectedUsers] = useState<string[]>([]);
   const [meetingProvider, setMeetingProvider] = useState<'native' | 'zoom' | 'google_meet'>('native');
+  const [externalInvitees, setExternalInvitees] = useState<{email: string; name?: string}[]>([]);
+  const [newExternalEmail, setNewExternalEmail] = useState('');
+  const [newExternalName, setNewExternalName] = useState('');
 
   // Edit meeting state
   const [editMeetingName, setEditMeetingName] = useState('');
@@ -239,6 +242,7 @@ const VideoCallPage: React.FC = () => {
         scheduledAt: scheduledDateTime.toISOString(),
         invitedUserIds: JSON.stringify(scheduleSelectedUsers),
         meetingProvider,
+        externalInvitees: JSON.stringify(externalInvitees),
       };
 
       // If Zoom or Google Meet, we would create the meeting here
@@ -276,6 +280,9 @@ const VideoCallPage: React.FC = () => {
       setScheduleMeetingTime('');
       setScheduleSelectedUsers([]);
       setMeetingProvider('native');
+      setExternalInvitees([]);
+      setNewExternalEmail('');
+      setNewExternalName('');
       setShowScheduleMeetingModal(false);
 
       loadScheduledMeetings();
@@ -1321,8 +1328,8 @@ Le note complete sono state salvate e sono disponibili nella sezione Note.`);
             <p className="text-gray-400">Gestisci le tue riunioni e videochiamate</p>
           </div>
 
-          {isAdmin && (
-            <div className="flex gap-3">
+          <div className="flex gap-3">
+            {isAdmin && (
               <button
                 onClick={() => setShowInstantMeetingModal(true)}
                 className="px-6 py-3 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 transition-all shadow-lg flex items-center gap-2 font-semibold"
@@ -1330,25 +1337,24 @@ Le note complete sono state salvate e sono disponibili nella sezione Note.`);
                 <Video className="w-5 h-5" />
                 Avvia Riunione
               </button>
-              <button
-                onClick={() => setShowScheduleMeetingModal(true)}
-                className="px-6 py-3 bg-purple-600 text-white rounded-xl hover:bg-purple-700 transition-all shadow-lg flex items-center gap-2 font-semibold"
-              >
-                <Calendar className="w-5 h-5" />
-                Pianifica Riunione
-              </button>
-            </div>
-          )}
-
-          {!isAdmin && (
+            )}
             <button
-              onClick={() => setShowNewRoomModal(true)}
-              className="px-6 py-3 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 transition-all shadow-lg flex items-center gap-2 font-semibold"
+              onClick={() => setShowScheduleMeetingModal(true)}
+              className="px-6 py-3 bg-purple-600 text-white rounded-xl hover:bg-purple-700 transition-all shadow-lg flex items-center gap-2 font-semibold"
             >
-              <Plus className="w-5 h-5" />
-              Nuova Stanza
+              <Calendar className="w-5 h-5" />
+              Pianifica Riunione
             </button>
-          )}
+            {!isAdmin && (
+              <button
+                onClick={() => setShowNewRoomModal(true)}
+                className="px-6 py-3 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 transition-all shadow-lg flex items-center gap-2 font-semibold"
+              >
+                <Plus className="w-5 h-5" />
+                Nuova Stanza
+              </button>
+            )}
+          </div>
         </div>
 
         {/* Tabs */}
@@ -1803,6 +1809,73 @@ Le note complete sono state salvate e sono disponibili nella sezione Note.`);
                     {scheduleSelectedUsers.length} utenti selezionati - Verrà creato un evento nel calendario
                   </p>
                 </div>
+
+                {/* Invita utenti esterni (solo per Zoom/Meet) */}
+                {meetingProvider !== 'native' && (
+                  <div>
+                    <label className="block text-sm font-semibold text-white mb-3">
+                      Invita Utenti Esterni (Email)
+                    </label>
+                    <p className="text-xs text-gray-400 mb-3">
+                      Gli utenti esterni riceveranno un'email con il link {meetingProvider === 'zoom' ? 'Zoom' : 'Google Meet'}
+                    </p>
+
+                    <div className="space-y-3">
+                      <div className="flex gap-2">
+                        <input
+                          type="email"
+                          value={newExternalEmail}
+                          onChange={(e) => setNewExternalEmail(e.target.value)}
+                          placeholder="email@esempio.com"
+                          className="flex-1 px-4 py-2 bg-slate-700 text-white rounded-xl border border-slate-600 focus:outline-none focus:border-indigo-500"
+                        />
+                        <input
+                          type="text"
+                          value={newExternalName}
+                          onChange={(e) => setNewExternalName(e.target.value)}
+                          placeholder="Nome (opzionale)"
+                          className="flex-1 px-4 py-2 bg-slate-700 text-white rounded-xl border border-slate-600 focus:outline-none focus:border-indigo-500"
+                        />
+                        <button
+                          onClick={() => {
+                            if (newExternalEmail && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(newExternalEmail)) {
+                              setExternalInvitees([...externalInvitees, { email: newExternalEmail, name: newExternalName || undefined }]);
+                              setNewExternalEmail('');
+                              setNewExternalName('');
+                            } else {
+                              alert('Inserisci un\'email valida');
+                            }
+                          }}
+                          className="px-4 py-2 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 transition-all"
+                        >
+                          <Plus className="w-5 h-5" />
+                        </button>
+                      </div>
+
+                      {externalInvitees.length > 0 && (
+                        <div className="max-h-32 overflow-y-auto space-y-2 bg-slate-700/50 rounded-xl p-3">
+                          {externalInvitees.map((invitee, index) => (
+                            <div key={index} className="flex items-center justify-between p-2 bg-slate-600/50 rounded-lg">
+                              <div className="flex-1">
+                                <p className="text-white text-sm">{invitee.name || invitee.email}</p>
+                                {invitee.name && <p className="text-gray-400 text-xs">{invitee.email}</p>}
+                              </div>
+                              <button
+                                onClick={() => setExternalInvitees(externalInvitees.filter((_, i) => i !== index))}
+                                className="text-red-400 hover:text-red-300"
+                              >
+                                <X className="w-4 h-4" />
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      <p className="text-xs text-gray-400">
+                        {externalInvitees.length} invitati esterni
+                      </p>
+                    </div>
+                  </div>
+                )}
               </div>
 
               <div className="p-6 border-t border-indigo-500/20 flex gap-3">
@@ -1815,6 +1888,9 @@ Le note complete sono state salvate e sono disponibili nella sezione Note.`);
                     setScheduleMeetingTime('');
                     setScheduleSelectedUsers([]);
                     setMeetingProvider('native');
+                    setExternalInvitees([]);
+                    setNewExternalEmail('');
+                    setNewExternalName('');
                   }}
                   className="flex-1 px-6 py-3 bg-slate-700 text-white rounded-xl hover:bg-slate-600 transition-all font-semibold"
                 >

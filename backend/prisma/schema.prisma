@@ -3,7 +3,7 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
+  provider = "sqlite"
   url      = env("DATABASE_URL")
 }
 
@@ -867,7 +867,8 @@ model VideoRoom {
   googleMeetUrl   String?  // URL Google Meet
 
   // Partecipanti invitati (per meeting programmati)
-  invitedUserIds  String   @default("[]") // Array JSON di user IDs
+  invitedUserIds  String   @default("[]") // Array JSON di user IDs (utenti interni)
+  externalInvitees String  @default("[]") // Array JSON di email esterne [{email, name}]
 
   // Partecipanti e chiamate
   partecipanti VideoRoomParticipant[]

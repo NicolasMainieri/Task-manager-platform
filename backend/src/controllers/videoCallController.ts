@@ -1,7 +1,86 @@
 import { Request, Response } from "express";
 import { PrismaClient } from "@prisma/client";
+import nodemailer from "nodemailer";
 
 const db = new PrismaClient();
+
+// Configurazione email (usa variabili d'ambiente in produzione)
+const transporter = nodemailer.createTransport({
+  host: process.env.SMTP_HOST || "smtp.gmail.com",
+  port: parseInt(process.env.SMTP_PORT || "587"),
+  secure: false,
+  auth: {
+    user: process.env.SMTP_USER,
+    pass: process.env.SMTP_PASS,
+  },
+});
+
+// Funzione per inviare email di invito
+const sendExternalInviteEmail = async (
+  invitee: { email: string; name?: string },
+  meetingDetails: {
+    nome: string;
+    descrizione?: string;
+    scheduledAt?: Date;
+    meetingUrl: string;
+    organizerName: string;
+    organizerEmail: string;
+  }
+) => {
+  if (!process.env.SMTP_USER || !process.env.SMTP_PASS) {
+    console.warn("⚠️ SMTP non configurato, skip invio email");
+    return;
+  }
+
+  const scheduledDate = meetingDetails.scheduledAt
+    ? new Date(meetingDetails.scheduledAt).toLocaleString("it-IT", {
+        dateStyle: "full",
+        timeStyle: "short",
+      })
+    : "Da definire";
+
+  const mailOptions = {
+    from: `"${meetingDetails.organizerName}" <${process.env.SMTP_USER}>`,
+    to: invitee.email,
+    subject: `Invito: ${meetingDetails.nome}`,
+    html: `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f5f5f5;">
+        <div style="background-color: white; padding: 30px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);">
+          <h2 style="color: #6366F1; margin-top: 0;">📅 Invito a Videocall</h2>
+
+          <p>Ciao ${invitee.name || invitee.email},</p>
+
+          <p><strong>${meetingDetails.organizerName}</strong> ti ha invitato a partecipare alla seguente videocall:</p>
+
+          <div style="background-color: #f8f9fa; padding: 20px; border-radius: 8px; margin: 20px 0;">
+            <h3 style="margin-top: 0; color: #333;">${meetingDetails.nome}</h3>
+            ${meetingDetails.descrizione ? `<p style="color: #666;">${meetingDetails.descrizione}</p>` : ""}
+            <p style="margin: 10px 0;"><strong>📆 Data:</strong> ${scheduledDate}</p>
+            <p style="margin: 10px 0;"><strong>👤 Organizzatore:</strong> ${meetingDetails.organizerName} (${meetingDetails.organizerEmail})</p>
+          </div>
+
+          <div style="text-align: center; margin: 30px 0;">
+            <a href="${meetingDetails.meetingUrl}"
+               style="display: inline-block; background-color: #6366F1; color: white; padding: 12px 30px; text-decoration: none; border-radius: 6px; font-weight: bold;">
+              🎥 Unisciti alla Call
+            </a>
+          </div>
+
+          <p style="color: #666; font-size: 12px; margin-top: 30px; border-top: 1px solid #e0e0e0; padding-top: 20px;">
+            Link alla call: <a href="${meetingDetails.meetingUrl}" style="color: #6366F1;">${meetingDetails.meetingUrl}</a>
+          </p>
+        </div>
+      </div>
+    `,
+  };
+
+  try {
+    await transporter.sendMail(mailOptions);
+    console.log(`✅ Email inviata a ${invitee.email}`);
+  } catch (error) {
+    console.error(`❌ Errore invio email a ${invitee.email}:`, error);
+  }
+};
 
 // Crea una nuova room
 export const createRoom = async (req: Request, res: Response) => {
@@ -10,7 +89,7 @@ export const createRoom = async (req: Request, res: Response) => {
     if (!userId) {
       return res.status(401).json({ error: "Utente non autenticato" });
     }
-    const { nome, descrizione, tipo, teamId, maxPartecipanti, password, scheduledAt, invitedUserIds, meetingProvider, zoomMeetingId, zoomJoinUrl, googleMeetUrl } = req.body;
+    const { nome, descrizione, tipo, teamId, maxPartecipanti, password, scheduledAt, invitedUserIds, externalInvitees, meetingProvider, zoomMeetingId, zoomJoinUrl, googleMeetUrl } = req.body;
 
     if (!nome) {
       return res.status(400).json({ error: "Il nome è obbligatorio" });
@@ -19,7 +98,7 @@ export const createRoom = async (req: Request, res: Response) => {
     // Ottieni il companyId dell'utente corrente per isolamento dati
     const user = await db.user.findUnique({
       where: { id: userId },
-      select: { companyId: true },
+      select: { companyId: true, nome: true, cognome: true, email: true },
     });
 
     if (!user?.companyId) {
@@ -39,6 +118,7 @@ export const createRoom = async (req: Request, res: Response) => {
         isActive: true,
         scheduledAt: scheduledAt ? new Date(scheduledAt) : null,
         invitedUserIds: invitedUserIds || "[]",
+        externalInvitees: externalInvitees || "[]",
         meetingProvider: meetingProvider || null,
         zoomMeetingId: zoomMeetingId || null,
         zoomJoinUrl: zoomJoinUrl || null,
@@ -91,6 +171,32 @@ export const createRoom = async (req: Request, res: Response) => {
         );
       } catch (error) {
         console.error('Errore creazione eventi calendario:', error);
+      }
+    }
+
+    // Invia email agli invitati esterni (solo per Zoom/Meet)
+    if (externalInvitees && (zoomJoinUrl || googleMeetUrl)) {
+      try {
+        const externalInviteesArray = JSON.parse(externalInvitees);
+        const meetingUrl = zoomJoinUrl || googleMeetUrl || '';
+
+        if (meetingUrl && externalInviteesArray.length > 0) {
+          await Promise.all(
+            externalInviteesArray.map((invitee: { email: string; name?: string }) =>
+              sendExternalInviteEmail(invitee, {
+                nome,
+                descrizione,
+                scheduledAt: scheduledAt ? new Date(scheduledAt) : undefined,
+                meetingUrl,
+                organizerName: `${user.nome} ${user.cognome}`,
+                organizerEmail: user.email,
+              })
+            )
+          );
+        }
+      } catch (error) {
+        console.error('Errore invio email invitati esterni:', error);
+        // Non blocchiamo la creazione della room se l'email fallisce
       }
     }
 
