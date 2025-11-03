@@ -18,6 +18,8 @@ const ALLOWED_ORIGINS = [
   "http://localhost:5176",
   "http://localhost:5177",
   "http://localhost:5178",
+  "https://task-manager-frontend-3lur.onrender.com",
+  "https://task-manager-platform-13kynb0x0-nicolasmainieris-projects.vercel.app",
   process.env.FRONTEND_URL,
   process.env.FRONTEND_ORIGIN
 ].filter(Boolean) as string[];

@@ -3,6 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { ArrowLeft, Building2, Mail, Lock, User, AlertCircle, CheckCircle } from 'lucide-react';
 import LiquidEther from '../components/LiquidEther';
+import api from '../services/api';
 
 interface ValidationErrors {
   email?: string;
@@ -89,90 +90,59 @@ const Login = () => {
     try {
       if (view === 'login') {
         console.log('📤 Attempting login with:', { email });
-        
-        const response = await fetch('http://localhost:4000/api/auth/login', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ email, password }),
-        });
 
-        const data = await response.json();
+        const response = await api.post('/auth/login', { email, password });
+        const data = response.data;
+
         console.log('📥 Login response:', { status: response.status, data });
 
-        if (response.ok) {
-          // ✅ Passa TUTTI i dati dell'utente al context (inclusi role, company, adminCompany)
-          const userData = data.user;
+        // ✅ Passa TUTTI i dati dell'utente al context (inclusi role, company, adminCompany)
+        const userData = data.user;
 
-          console.log('✅ Login successful, calling login function with full user data:', userData);
-          login(userData, data.token);
-          
-          setTimeout(() => {
-            console.log('🔄 Navigating to dashboard');
-            navigate('/dashboard', { replace: true });
-          }, 100);
-        } else {
-          setError(data.message || 'Credenziali non valide');
-          console.error('❌ Login failed:', data.message);
-        }
+        console.log('✅ Login successful, calling login function with full user data:', userData);
+        login(userData, data.token);
+
+        setTimeout(() => {
+          console.log('🔄 Navigating to dashboard');
+          navigate('/dashboard', { replace: true });
+        }, 100);
       } else if (view === 'register-admin') {
         console.log('📤 Attempting admin registration');
-        
-        const response = await fetch('http://localhost:4000/api/auth/register-company', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            email,
-            password,
-            name,
-            companyName,
-            plan
-          }),
+
+        const response = await api.post('/auth/register-company', {
+          email,
+          password,
+          name,
+          companyName,
+          plan
         });
 
-        const data = await response.json();
+        const data = response.data;
 
-        if (response.ok) {
-          setSuccess(`Account aziendale creato! Codice azienda: ${data.companyCode}`);
-          setTimeout(() => {
-            setView('login');
-          }, 3000);
-        } else {
-          setError(data.message || 'Errore durante la registrazione');
-        }
+        setSuccess(`Account aziendale creato! Codice azienda: ${data.companyCode}`);
+        setTimeout(() => {
+          setView('login');
+        }, 3000);
       } else if (view === 'register-employee') {
         console.log('📤 Attempting employee registration');
-        
-        const response = await fetch('http://localhost:4000/api/auth/register-employee', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            email,
-            password,
-            name,
-            companyCode
-          }),
+
+        const response = await api.post('/auth/register-employee', {
+          email,
+          password,
+          name,
+          companyCode
         });
 
-        const data = await response.json();
+        const data = response.data;
 
-        if (response.ok) {
-          setSuccess('Richiesta inviata! Attendi l\'approvazione dell\'amministratore.');
-          setTimeout(() => {
-            setView('login');
-          }, 3000);
-        } else {
-          setError(data.message || 'Errore durante la registrazione');
-        }
+        setSuccess('Richiesta inviata! Attendi l\'approvazione dell\'amministratore.');
+        setTimeout(() => {
+          setView('login');
+        }, 3000);
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error('❌ Error:', err);
-      setError('Errore di connessione al server');
+      setError(err.response?.data?.message || 'Errore di connessione al server');
     } finally {
       setIsLoading(false);
     }

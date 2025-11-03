@@ -1,6 +1,22 @@
 import axios from 'axios';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000/api';
+// Configurazione API - usa Render in produzione, localhost in sviluppo
+const getApiUrl = () => {
+  // Se siamo in produzione (Render/Vercel), usa il backend su Render
+  if (import.meta.env.PROD) {
+    return 'https://task-manager-platform.onrender.com/api';
+  }
+  // Altrimenti usa la variabile d'ambiente o localhost
+  return import.meta.env.VITE_API_URL?.replace(/\/$/, '') + '/api' || 'http://localhost:4000/api';
+};
+
+const API_URL = getApiUrl();
+
+console.log('🔧 API Configuration:', {
+  API_URL,
+  MODE: import.meta.env.MODE,
+  PROD: import.meta.env.PROD
+});
 
 const api = axios.create({
   baseURL: API_URL,
@@ -8,6 +24,9 @@ const api = axios.create({
     'Content-Type': 'application/json',
   },
 });
+
+// Esporta anche l'URL base per uso diretto
+export const API_BASE_URL = API_URL.replace('/api', '');
 
 // Interceptor per aggiungere il token a ogni richiesta
 api.interceptors.request.use(
