@@ -849,6 +849,66 @@ class TaskController {
       res.status(500).json({ error: error.message });
     }
   }
+
+  async deleteAllTasks(req: AuthRequest, res: Response) {
+    try {
+      // Solo gli admin possono cancellare tutte le task
+      const isAdmin = (req.user!.role.permessi as any).isAdmin;
+      if (!isAdmin) {
+        return res.status(403).json({ error: "Solo gli admin possono cancellare tutte le task" });
+      }
+
+      // Verifica azienda
+      const currentUser = await prisma.user.findUnique({
+        where: { id: req.user!.id },
+        select: { companyId: true }
+      });
+
+      if (!currentUser?.companyId) {
+        return res.status(400).json({ error: "Azienda non trovata" });
+      }
+
+      // Conta quante task verranno cancellate
+      const taskCount = await prisma.task.count({
+        where: {
+          owner: {
+            companyId: currentUser.companyId
+          }
+        }
+      });
+
+      // Cancella tutte le task dell'azienda
+      await prisma.task.deleteMany({
+        where: {
+          owner: {
+            companyId: currentUser.companyId
+          }
+        }
+      });
+
+      // Log dell'azione
+      await prisma.auditLog.create({
+        data: {
+          entita: "Task",
+          entitaId: "bulk-delete",
+          azione: "delete_all",
+          autoreId: req.user!.id,
+          payload: stringifyJsonField({
+            deletedCount: taskCount,
+            companyId: currentUser.companyId
+          })
+        }
+      });
+
+      res.json({
+        message: `${taskCount} task eliminate con successo`,
+        deletedCount: taskCount
+      });
+    } catch (error: any) {
+      console.error('❌ Error in deleteAllTasks:', error);
+      res.status(500).json({ error: error.message });
+    }
+  }
 }
 
 export default new TaskController();

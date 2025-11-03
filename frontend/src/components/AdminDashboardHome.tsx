@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
+import api from '../services/api';
 import {
   TrendingUp,
   Users,
@@ -12,10 +12,9 @@ import {
   Clock,
   CheckCircle2,
   ArrowRight,
-  Ticket
+  Ticket,
+  Trash2
 } from 'lucide-react';
-
-const API_URL = 'http://localhost:4000/api';
 
 interface DashboardStats {
   tasksCompletedToday: number;
@@ -75,8 +74,7 @@ const AdminDashboardHome: React.FC = () => {
   const [upcomingCalls, setUpcomingCalls] = useState<VideoCall[]>([]);
   const [topPerformers, setTopPerformers] = useState<TopPerformer[]>([]);
   const [loading, setLoading] = useState(true);
-
-  const token = localStorage.getItem('token');
+  const [isDeleting, setIsDeleting] = useState(false);
 
   useEffect(() => {
     loadDashboardData();
@@ -86,7 +84,7 @@ const AdminDashboardHome: React.FC = () => {
     try {
       setLoading(true);
 
-      // Carica tutte le chiamate in parallelo
+      // Carica tutte le chiamate in parallelo usando il servizio API centralizzato
       const [
         statsRes,
         tasksRes,
@@ -95,29 +93,12 @@ const AdminDashboardHome: React.FC = () => {
         callsRes,
         performersRes
       ] = await Promise.all([
-        axios.get(`${API_URL}/analytics/dashboard-stats`, {
-          headers: { Authorization: `Bearer ${token}` }
-        }).catch(() => ({ data: null })),
-
-        axios.get(`${API_URL}/tasks?priorita=alta&limit=5`, {
-          headers: { Authorization: `Bearer ${token}` }
-        }).catch(() => ({ data: [] })),
-
-        axios.get(`${API_URL}/calendar/events?limit=5`, {
-          headers: { Authorization: `Bearer ${token}` }
-        }).catch(() => ({ data: [] })),
-
-        axios.get(`${API_URL}/emails?limit=5`, {
-          headers: { Authorization: `Bearer ${token}` }
-        }).catch(() => ({ data: [] })),
-
-        axios.get(`${API_URL}/video-rooms?scheduled=true&limit=3`, {
-          headers: { Authorization: `Bearer ${token}` }
-        }).catch(() => ({ data: [] })),
-
-        axios.get(`${API_URL}/analytics/top-performers?limit=5`, {
-          headers: { Authorization: `Bearer ${token}` }
-        }).catch(() => ({ data: [] }))
+        api.get('/analytics/dashboard-stats').catch(() => ({ data: null })),
+        api.get('/tasks?priorita=alta&limit=5').catch(() => ({ data: [] })),
+        api.get('/calendar/events?limit=5').catch(() => ({ data: [] })),
+        api.get('/emails?limit=5').catch(() => ({ data: [] })),
+        api.get('/video-rooms?scheduled=true&limit=3').catch(() => ({ data: [] })),
+        api.get('/analytics/top-performers?limit=5').catch(() => ({ data: [] }))
       ]);
 
       setStats(statsRes.data || {
@@ -147,6 +128,29 @@ const AdminDashboardHome: React.FC = () => {
       hour: '2-digit',
       minute: '2-digit'
     });
+  };
+
+  const handleDeleteAllTasks = async () => {
+    if (!confirm('⚠️ ATTENZIONE: Questa azione cancellerà TUTTE le task dell\'azienda. Sei sicuro di voler continuare?')) {
+      return;
+    }
+
+    if (!confirm('Sei VERAMENTE sicuro? Questa azione è IRREVERSIBILE!')) {
+      return;
+    }
+
+    try {
+      setIsDeleting(true);
+      const response = await api.delete('/tasks');
+      alert(`✅ ${response.data.deletedCount} task eliminate con successo`);
+      // Ricarica i dati della dashboard
+      await loadDashboardData();
+    } catch (error: any) {
+      console.error('Errore durante l\'eliminazione delle task:', error);
+      alert(`❌ Errore: ${error.response?.data?.error || 'Impossibile eliminare le task'}`);
+    } finally {
+      setIsDeleting(false);
+    }
   };
 
   if (loading) {
@@ -232,6 +236,18 @@ const AdminDashboardHome: React.FC = () => {
             </div>
           </div>
         </div>
+      </div>
+
+      {/* Admin Actions */}
+      <div className="flex justify-end">
+        <button
+          onClick={handleDeleteAllTasks}
+          disabled={isDeleting}
+          className="flex items-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-700 disabled:bg-red-400 text-white rounded-lg font-semibold transition-colors shadow-md hover:shadow-lg"
+        >
+          <Trash2 className="w-4 h-4" />
+          {isDeleting ? 'Eliminazione...' : 'Cancella Tutte le Task'}
+        </button>
       </div>
 
       {/* Main Content Grid */}

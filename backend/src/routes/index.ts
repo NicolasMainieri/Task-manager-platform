@@ -86,6 +86,7 @@ router.get("/tasks/today", authenticate, taskController.getTodayTasks);
 router.get("/tasks/:id", authenticate, taskController.getTaskById);
 router.put("/tasks/:id", authenticate, taskController.updateTask);
 router.delete("/tasks/:id", authenticate, taskController.deleteTask);
+router.delete("/tasks", authenticate, isAdmin, taskController.deleteAllTasks);
 router.post("/tasks/bulk-update", authenticate, isAdmin, taskController.bulkUpdate);
 router.post("/tasks/:id/comments", authenticate, taskController.addComment);
 router.get("/tasks/:id/comments", authenticate, commentController.getTaskComments);

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
+import api from '../services/api';
 
 const TaskDetailModal = ({ taskId, isOpen, onClose, onTaskUpdated }) => {
   const { token, user } = useAuth();
@@ -20,15 +21,9 @@ const TaskDetailModal = ({ taskId, isOpen, onClose, onTaskUpdated }) => {
 
   const fetchTaskDetails = async () => {
     try {
-      const response = await fetch(`http://localhost:4000/api/tasks/${taskId}`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        setTask(data);
-        setChecklist(data.checklist || []);
-      }
+      const response = await api.get(`/tasks/${taskId}`);
+      setTask(response.data);
+      setChecklist(response.data.checklist || []);
     } catch (error) {
       console.error('❌ Errore caricamento task:', error);
     } finally {
@@ -38,14 +33,8 @@ const TaskDetailModal = ({ taskId, isOpen, onClose, onTaskUpdated }) => {
 
   const fetchComments = async () => {
     try {
-      const response = await fetch(`http://localhost:4000/api/tasks/${taskId}/comments`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        setComments(data);
-      }
+      const response = await api.get(`/tasks/${taskId}/comments`);
+      setComments(response.data);
     } catch (error) {
       console.error('❌ Errore caricamento commenti:', error);
     }
@@ -56,19 +45,9 @@ const TaskDetailModal = ({ taskId, isOpen, onClose, onTaskUpdated }) => {
     if (!comment.trim()) return;
 
     try {
-      const response = await fetch(`http://localhost:4000/api/tasks/${taskId}/comments`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ contenuto: comment })
-      });
-
-      if (response.ok) {
-        setComment('');
-        fetchComments();
-      }
+      await api.post(`/tasks/${taskId}/comments`, { contenuto: comment });
+      setComment('');
+      fetchComments();
     } catch (error) {
       console.error('❌ Errore aggiunta commento:', error);
     }
@@ -99,14 +78,7 @@ const TaskDetailModal = ({ taskId, isOpen, onClose, onTaskUpdated }) => {
 
   const updateTaskChecklist = async (newChecklist) => {
     try {
-      await fetch(`http://localhost:4000/api/tasks/${taskId}`, {
-        method: 'PUT',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ checklist: newChecklist })
-      });
+      await api.put(`/tasks/${taskId}`, { checklist: newChecklist });
     } catch (error) {
       console.error('❌ Errore aggiornamento checklist:', error);
     }
@@ -114,19 +86,9 @@ const TaskDetailModal = ({ taskId, isOpen, onClose, onTaskUpdated }) => {
 
   const handleUpdateField = async (field, value) => {
     try {
-      const response = await fetch(`http://localhost:4000/api/tasks/${taskId}`, {
-        method: 'PUT',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ [field]: value })
-      });
-
-      if (response.ok) {
-        fetchTaskDetails();
-        onTaskUpdated?.();
-      }
+      await api.put(`/tasks/${taskId}`, { [field]: value });
+      fetchTaskDetails();
+      onTaskUpdated?.();
     } catch (error) {
       console.error('❌ Errore aggiornamento task:', error);
     }

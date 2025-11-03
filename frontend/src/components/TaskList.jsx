@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import CreateTaskModal from '../components/CreateTaskModal';
 import TaskDetailModal from '../components/TaskDetailModal';
+import api from '../services/api';
 
 const TaskList = () => {
   const { token, user } = useAuth();
@@ -26,19 +27,11 @@ const TaskList = () => {
   const fetchTasks = async () => {
     setLoading(true);
     try {
-      const response = await fetch('http://localhost:4000/api/tasks', {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        // FIX: Accedi all'array tasks dentro l'oggetto data
-        const taskArray = data.tasks || [];
-        setTasks(taskArray);
-        console.log('✅ Task caricati:', data);
-      }
+      const response = await api.get('/tasks');
+      // FIX: Accedi all'array tasks dentro l'oggetto data
+      const taskArray = response.data.tasks || [];
+      setTasks(taskArray);
+      console.log('✅ Task caricati:', response.data);
     } catch (error) {
       console.error('❌ Errore caricamento task:', error);
     } finally {
@@ -84,41 +77,24 @@ const TaskList = () => {
 
   const handleChangeStatus = async (taskId, newStatus) => {
     try {
-      const response = await fetch(`http://localhost:4000/api/tasks/${taskId}`, {
-        method: 'PUT',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ stato: newStatus })
-      });
-
-      if (response.ok) {
-        fetchTasks();
-        console.log('✅ Stato aggiornato');
-      }
+      await api.put(`/tasks/${taskId}`, { stato: newStatus });
+      fetchTasks();
+      console.log('✅ Stato aggiornato');
     } catch (error) {
       console.error('❌ Errore aggiornamento stato:', error);
     }
   };
 
   const handleDelete = async (taskId) => {
-    if (!window.confirm('Sei sicuro di voler eliminare questo task?')) return;
+    if (!window.confirm('Sei sicuro di voler eliminare questa task?')) return;
 
     try {
-      const response = await fetch(`http://localhost:4000/api/tasks/${taskId}`, {
-        method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      });
-
-      if (response.ok) {
-        fetchTasks();
-        console.log('✅ Task eliminato');
-      }
+      await api.delete(`/tasks/${taskId}`);
+      fetchTasks();
+      console.log('✅ Task eliminata');
     } catch (error) {
       console.error('❌ Errore eliminazione task:', error);
+      alert('Errore durante l\'eliminazione della task');
     }
   };
 
