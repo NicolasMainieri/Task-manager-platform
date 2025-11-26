@@ -4,6 +4,8 @@ import { AuthProvider, useAuth } from './contexts/AuthContext';
 import Landing from './pages/Landing.tsx';  // ✅ Senza .jsx
 import Login from './pages/Login.tsx';      // ✅ Senza .jsx
 import DashboardRouter from './pages/DashboardRouter';  // ✅ Senza .tsx
+import SuperAdminPage from './pages/SuperAdminPage';
+import LegalPage from './pages/LegalPage';
 // Componente per proteggere le rotte
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { isAuthenticated, loading } = useAuth();
@@ -73,6 +75,26 @@ function App() {
               element={
                 <ProtectedRoute>
                   <DashboardRouter />
+                </ProtectedRoute>
+              }
+            />
+
+            {/* SuperAdmin - Protetta, solo per SuperAdmin */}
+            <Route
+              path="/superadmin"
+              element={
+                <ProtectedRoute>
+                  <SuperAdminPage />
+                </ProtectedRoute>
+              }
+            />
+
+            {/* Legal - Protetta, per studi legali */}
+            <Route
+              path="/legal"
+              element={
+                <ProtectedRoute>
+                  <LegalPage />
                 </ProtectedRoute>
               }
             />

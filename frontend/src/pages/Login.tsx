@@ -25,6 +25,7 @@ const Login = () => {
   const [companyName, setCompanyName] = useState('');
   const [companyCode, setCompanyCode] = useState('');
   const [plan, setPlan] = useState('starter');
+  const [categoria, setCategoria] = useState('generale');
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -114,7 +115,8 @@ const Login = () => {
           password,
           name,
           companyName,
-          plan
+          plan,
+          categoria
         });
 
         const data = response.data;
@@ -391,6 +393,30 @@ const Login = () => {
                 </select>
                 <p className="mt-1 text-xs text-gray-400">
                   14 giorni di prova gratuita, nessuna carta richiesta
+                </p>
+              </div>
+            )}
+
+            {/* Category Selection (only for admin registration) */}
+            {view === 'register-admin' && (
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">
+                  Categoria Azienda
+                </label>
+                <select
+                  value={categoria}
+                  onChange={(e) => setCategoria(e.target.value)}
+                  className="w-full bg-slate-900/50 border border-purple-500/30 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-purple-500 transition"
+                >
+                  <option value="generale">Generale</option>
+                  <option value="ecommerce">E-commerce</option>
+                  <option value="studio_legale">Studio Legale</option>
+                  <option value="agenzia">Agenzia</option>
+                  <option value="software_house">Software House</option>
+                  <option value="manifatturiero">Manifatturiero</option>
+                </select>
+                <p className="mt-1 text-xs text-gray-400">
+                  La categoria determina i moduli disponibili per la tua azienda
                 </p>
               </div>
             )}

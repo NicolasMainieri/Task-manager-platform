@@ -60,7 +60,15 @@
       "Bash(if not exist uploadsdocuments mkdir uploadsdocuments)",
       "Bash(if not exist \"c:\\Users\\Windows\\Desktop\\task-management-platform\\backend\\uploads\\preventivi\" mkdir \"c:\\Users\\Windows\\Desktop\\task-management-platform\\backend\\uploads\\preventivi\")",
       "Bash(if not exist uploadspreventivi mkdir uploadspreventivi)",
-      "Bash(if exist backendnul del backendnul)"
+      "Bash(if exist backendnul del backendnul)",
+      "Bash(if not exist \"prisma\\migrations\\20250103000000_add_external_invitees\" mkdir \"prisma\\migrations\\20250103000000_add_external_invitees\")",
+      "Bash(wmic os:*)",
+      "Bash(test:*)",
+      "Bash(./apache/bin/httpd.exe:*)",
+      "Bash(if exist node_modules.cachets-node rmdir /s /q node_modules.cachets-node)",
+      "Bash(if not exist \"c:\\Users\\Windows\\Desktop\\task-management-platform\\backend\\uploads\\pagamenti\" mkdir \"c:\\Users\\Windows\\Desktop\\task-management-platform\\backend\\uploads\\pagamenti\")",
+      "Bash(set:*)",
+      "Bash(npx ts-node:*)"
     ],
     "deny": [],
     "ask": []

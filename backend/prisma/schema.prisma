@@ -3,7 +3,7 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
+  provider = "sqlite"
   url      = env("DATABASE_URL")
 }
 
@@ -14,11 +14,17 @@ model Company {
   plan        String   // 'free_trial', 'starter', 'professional', 'enterprise'
   logo        String?  // URL del logo aziendale
 
+  // Categoria azienda (per attivazione moduli automatici)
+  categoria   String   @default("generale") // 'generale', 'ecommerce', 'studio_legale', 'agenzia', 'software_house', 'manifatturiero'
+
   // Gestione abbonamento
   planStatus       String    @default("active") // 'active', 'expired', 'cancelled'
   trialEndsAt      DateTime? // Data fine free trial
   subscriptionEndsAt DateTime? // Data scadenza abbonamento
   nextRenewalDate  DateTime? // Data prossimo rinnovo
+
+  // Moduli attivi (controllati dal SuperAdmin)
+  moduliAttivi String   @default("[]") // Array JSON di moduli attivi: ["preventivi", "newsletter", "presenze", ...]
 
   // Dati di fatturazione
   partitaIva       String?
@@ -43,6 +49,9 @@ model Company {
   ticketCategories TicketCategory[] @relation("CompanyTicketCategories")
   roleChangeRequests RoleChangeRequest[] @relation("CompanyRoleChangeRequests")
   rewards     Reward[]    @relation("CompanyRewards")
+
+  @@index([categoria])
+  @@index([plan])
 }
 
 model Role {
@@ -108,6 +117,9 @@ model User {
   // admin di un'azienda (1:1, lato opposto senza campi)
   adminCompany  Company?      @relation("CompanyAdmin")
 
+  // SuperAdmin (accesso a tutte le aziende e configurazioni)
+  isSuperAdmin  Boolean       @default(false)
+
   // 'pending' | 'approved' | 'rejected'
   status        String        @default("approved")
 
@@ -149,6 +161,7 @@ model User {
 
   @@index([companyId])
   @@index([status])
+  @@index([isSuperAdmin])
 }
 
 model Progetto {
@@ -1097,6 +1110,8 @@ model Contact {
   telefonoCellulare String?
   azienda     String?
   ruolo       String?  // Ruolo nella loro azienda
+  partitaIva  String?  // Partita IVA
+  codiceFiscale String?  // Codice Fiscale
   indirizzo   String?
   citta       String?
   cap         String?
@@ -1571,4 +1586,709 @@ model NewsletterInvio {
   @@index([emailDestinatario])
   @@index([stato])
   @@index([dataInvio])
+}
+
+// ===================================
+// SISTEMA FATTURAZIONE E PAGAMENTI
+// ===================================
+
+// Fatture emesse
+model Fattura {
+  id          String   @id @default(uuid())
+
+  // Numerazione fattura
+  numero      String   @unique // es: "2025/001"
+  anno        Int      // Anno fiscale
+  progressivo Int      // Numero progressivo nell'anno
+
+  // Cliente
+  clienteNome     String
+  clienteEmail    String?
+  clienteTelefono String?
+  clientePIva     String?
+  clienteCF       String?
+  clienteIndirizzo String?
+  clienteCitta    String?
+  clienteCAP      String?
+  clientePaese    String?  @default("Italia")
+
+  // Collegamento contatto (opzionale)
+  contactId   String?
+
+  // Collegamento preventivo (se la fattura deriva da un preventivo)
+  preventivoId String?
+
+  // Collegamento progetto (se fattura per progetto)
+  progettoId  String?
+
+  // Righe fattura (array JSON)
+  righe       String   @default("[]") // [{ descrizione, quantita, prezzoUnitario, iva, totale }]
+
+  // Totali
+  imponibile  Float    // Totale imponibile (senza IVA)
+  iva         Float    // Totale IVA
+  totale      Float    // Totale fattura (imponibile + IVA)
+
+  // Sconto (opzionale)
+  sconto      Float    @default(0) // % di sconto
+  scontoImporto Float  @default(0) // Importo sconto in euro
+
+  // Date
+  dataEmissione DateTime @default(now())
+  dataScadenza  DateTime // Data scadenza pagamento
+
+  // Stato pagamento
+  statoPagamento String  @default("non_pagata") // 'non_pagata', 'parzialmente_pagata', 'pagata', 'scaduta'
+  importoPagato  Float   @default(0)
+  importoDaPagare Float  // Importo ancora da pagare
+
+  // Metodo pagamento
+  metodoPagamento String? // 'bonifico', 'contanti', 'carta', 'assegno', 'paypal', 'stripe'
+
+  // Note
+  note        String?
+  noteInterne String? // Note visibili solo internamente
+
+  // File generati
+  urlPdf      String? // URL del PDF generato
+
+  // Chi ha creato la fattura
+  createdById String
+
+  // Azienda (isolamento dati)
+  companyId   String
+
+  // Pagamenti collegati
+  pagamenti   Pagamento[]
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([companyId])
+  @@index([createdById])
+  @@index([contactId])
+  @@index([preventivoId])
+  @@index([progettoId])
+  @@index([statoPagamento])
+  @@index([dataEmissione])
+  @@index([dataScadenza])
+  @@index([anno, progressivo])
+}
+
+// Pagamenti ricevuti
+model Pagamento {
+  id          String   @id @default(uuid())
+
+  // Fattura collegata
+  fatturaId   String
+  fattura     Fattura  @relation(fields: [fatturaId], references: [id])
+
+  // Importo pagamento
+  importo     Float
+
+  // Data pagamento
+  dataPagamento DateTime @default(now())
+
+  // Metodo pagamento
+  metodoPagamento String // 'bonifico', 'contanti', 'carta', 'assegno', 'paypal', 'stripe'
+
+  // Riferimento pagamento (es: numero bonifico, ID transazione)
+  riferimento String?
+
+  // Note
+  note        String?
+
+  // Ricevuta/prova pagamento
+  urlRicevuta String?
+
+  // Chi ha registrato il pagamento
+  createdById String
+
+  // Azienda
+  companyId   String
+
+  createdAt   DateTime @default(now())
+
+  @@index([fatturaId])
+  @@index([companyId])
+  @@index([createdById])
+  @@index([dataPagamento])
+  @@index([metodoPagamento])
+}
+
+// ===================================
+// SISTEMA PRESENZE E TIMBRATURE
+// ===================================
+
+// Timbrature dipendenti (entrate/uscite)
+model Timbratura {
+  id          String   @id @default(uuid())
+
+  // Dipendente
+  userId      String
+
+  // Tipo timbratura
+  tipo        String   // 'entrata', 'uscita', 'pausa_inizio', 'pausa_fine'
+
+  // Data e ora timbratura
+  timestamp   DateTime @default(now())
+
+  // Posizione GPS (opzionale)
+  latitudine  Float?
+  longitudine Float?
+
+  // Note (es: motivo uscita anticipata)
+  note        String?
+
+  // Modalità timbratura
+  modalita    String   @default("manuale") // 'manuale', 'badge', 'gps', 'biometrico'
+
+  // IP o device info
+  ipAddress   String?
+  userAgent   String?
+
+  // Foto (se timbratura con selfie)
+  fotoUrl     String?
+
+  // Azienda
+  companyId   String
+
+  createdAt   DateTime @default(now())
+
+  @@index([userId])
+  @@index([companyId])
+  @@index([timestamp])
+  @@index([tipo])
+}
+
+// Richieste ferie/permessi
+model RichiestaAssenza {
+  id          String   @id @default(uuid())
+
+  // Dipendente richiedente
+  userId      String
+
+  // Tipo assenza
+  tipo        String   // 'ferie', 'permesso', 'malattia', 'congedo', 'smartworking', 'trasferta'
+
+  // Date
+  dataInizio  DateTime
+  dataFine    DateTime
+  giorniRichiesti Int  // Numero giorni lavorativi richiesti
+
+  // Motivazione
+  motivazione String?
+
+  // Stato richiesta
+  stato       String   @default("pending") // 'pending', 'approvata', 'rifiutata'
+
+  // Approvazione
+  approvataDa String?  // User ID di chi ha approvato/rifiutato
+  dataApprovazione DateTime?
+  noteApprovazione String?
+
+  // Documenti allegati (es: certificato medico)
+  allegati    String   @default("[]") // Array JSON di URLs
+
+  // Azienda
+  companyId   String
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([userId])
+  @@index([companyId])
+  @@index([stato])
+  @@index([tipo])
+  @@index([dataInizio])
+  @@index([dataFine])
+}
+
+// Foglio ore mensile (riepilogo)
+model FoglioOre {
+  id          String   @id @default(uuid())
+
+  // Dipendente
+  userId      String
+
+  // Periodo
+  anno        Int
+  mese        Int      // 1-12
+
+  // Ore lavorate
+  oreLavorate Float    @default(0)
+  oreOrdinarie Float   @default(0)
+  oreStraordinarie Float @default(0)
+
+  // Assenze
+  giorniFerie     Int   @default(0)
+  giorniPermessi  Int   @default(0)
+  giorniMalattia  Int   @default(0)
+
+  // Stato
+  stato       String   @default("draft") // 'draft', 'submitted', 'approved'
+
+  // Approvazione
+  approvatoDa String?
+  dataApprovazione DateTime?
+
+  // Dettagli giornalieri (JSON)
+  dettagliGiornalieri String @default("{}") // { "01": { ore: 8, tipo: "lavoro" }, ... }
+
+  // Azienda
+  companyId   String
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([userId, anno, mese, companyId])
+  @@index([userId])
+  @@index([companyId])
+  @@index([anno, mese])
+  @@index([stato])
+}
+
+// ===================================
+// SISTEMA ANALYTICS E REPORTISTICA
+// ===================================
+
+// Metriche aziendali aggregate
+model MetricaAziendale {
+  id          String   @id @default(uuid())
+
+  // Tipo metrica
+  tipo        String   // 'fatturato', 'ore_lavorate', 'progetti_completati', 'task_completate', 'utenti_attivi'
+
+  // Periodo
+  periodo     String   // 'giornaliero', 'settimanale', 'mensile', 'annuale'
+  anno        Int
+  mese        Int?     // Opzionale
+  settimana   Int?     // Opzionale
+  giorno      DateTime? // Opzionale
+
+  // Valore metrica
+  valore      Float
+
+  // Dettagli aggiuntivi (JSON)
+  dettagli    String   @default("{}")
+
+  // Azienda
+  companyId   String
+
+  createdAt   DateTime @default(now())
+
+  @@index([companyId])
+  @@index([tipo])
+  @@index([periodo])
+  @@index([anno, mese])
+}
+
+// Log attività utenti (per analytics)
+model LogAttivita {
+  id          String   @id @default(uuid())
+
+  // Utente
+  userId      String
+
+  // Tipo attività
+  tipo        String   // 'login', 'logout', 'task_created', 'task_completed', 'document_uploaded', ecc.
+
+  // Dettagli attività (JSON)
+  dettagli    String   @default("{}")
+
+  // Entità collegata (opzionale)
+  entitaTipo  String?  // 'task', 'progetto', 'documento', ecc.
+  entitaId    String?
+
+  // Metadata
+  ipAddress   String?
+  userAgent   String?
+
+  // Azienda
+  companyId   String
+
+  timestamp   DateTime @default(now())
+
+  @@index([userId])
+  @@index([companyId])
+  @@index([tipo])
+  @@index([timestamp])
+  @@index([entitaTipo, entitaId])
+}
+
+// ===================================
+// SISTEMA PLANNING AVANZATO
+// ===================================
+
+// Template pianificazione ricorrente
+model TemplatePianificazione {
+  id          String   @id @default(uuid())
+
+  // Nome template
+  nome        String
+  descrizione String?
+
+  // Tipo
+  tipo        String   // 'settimanale', 'mensile', 'progetto'
+
+  // Configurazione template (JSON)
+  configurazione String @default("{}")
+  // Es: { giorni: ['lunedi', 'mercoledi'], oraInizio: '09:00', oraFine: '18:00', tasks: [...] }
+
+  // Assegnazione
+  userId      String?  // Se template personale
+  teamId      String?  // Se template di team
+
+  // Azienda
+  companyId   String
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([companyId])
+  @@index([userId])
+  @@index([teamId])
+  @@index([tipo])
+}
+
+// Allocation risorse (pianificazione assegnazioni)
+model AllocationRisorse {
+  id          String   @id @default(uuid())
+
+  // Risorsa (dipendente)
+  userId      String
+
+  // Progetto o task
+  progettoId  String?
+  taskId      String?
+
+  // Periodo allocation
+  dataInizio  DateTime
+  dataFine    DateTime
+
+  // Percentuale allocation (0-100)
+  percentuale Int      @default(100) // 100 = full time, 50 = part time
+
+  // Ore stimate
+  oreStimate  Float
+
+  // Ore effettive (aggiornato man mano)
+  oreEffettive Float   @default(0)
+
+  // Note
+  note        String?
+
+  // Stato
+  stato       String   @default("pianificato") // 'pianificato', 'in_corso', 'completato'
+
+  // Azienda
+  companyId   String
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([userId])
+  @@index([progettoId])
+  @@index([taskId])
+  @@index([companyId])
+  @@index([dataInizio, dataFine])
+  @@index([stato])
+}
+
+// Inventario prodotti/servizi
+model InventarioItem {
+  id              String   @id @default(uuid())
+
+  // Informazioni prodotto/servizio
+  codice          String   // Codice prodotto/SKU
+  nome            String
+  descrizione     String?
+  categoria       String?  // es: "Prodotto", "Servizio", "Materiale"
+  immagine        String?  // URL o path dell'immagine prodotto
+
+  // Prezzi
+  prezzoAcquisto  Float    @default(0)
+  prezzoVendita   Float
+  iva             Float    @default(22) // % IVA
+
+  // Quantità (solo per prodotti fisici)
+  quantita        Int      @default(0)
+  unitaMisura     String   @default("pz") // es: "pz", "kg", "l", "h" (ore)
+  scorteMinime    Int      @default(0)
+
+  // Fornitore
+  fornitore       String?
+  fornitoreId     String?  // Link a Contact se esiste
+
+  // Stato
+  attivo          Boolean  @default(true)
+
+  // Note
+  note            String?
+
+  // Azienda (isolamento dati)
+  companyId       String
+  createdById     String
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@unique([companyId, codice])
+  @@index([companyId])
+  @@index([categoria])
+  @@index([attivo])
+  @@index([codice])
+}
+
+// ===================================
+// SISTEMA STUDI LEGALI CON AI
+// ===================================
+
+// Documenti legali (sentenze, leggi, giurisprudenza)
+model LegalDocument {
+  id          String   @id @default(uuid())
+
+  // Informazioni documento
+  tipo        String   // 'sentenza', 'legge', 'decreto', 'regolamento', 'direttiva_ue'
+  titolo      String
+  numero      String?  // Numero sentenza/legge
+  anno        Int?
+
+  // Autorità emittente
+  autorita    String?  // es: "Corte di Cassazione", "Parlamento Europeo"
+  sezione     String?  // Sezione della corte
+
+  // Date
+  dataEmissione DateTime?
+  dataPubblicazione DateTime?
+
+  // Contenuto
+  testoCompleto String?  @default("") // Testo completo del documento
+  abstract      String?  // Riassunto
+  massima       String?  // Massima (per sentenze)
+
+  // Materia e keywords
+  materia       String?  // es: "Civile", "Penale", "Amministrativo"
+  sottoMateria  String?  // es: "Contratti", "Responsabilità civile"
+  keywords      String   @default("[]") // Array JSON di parole chiave
+
+  // Riferimenti normativi
+  riferimentiNormativi String @default("[]") // Array JSON di leggi/articoli citati
+
+  // Collegamenti ad altri documenti
+  documentoCollegati String @default("[]") // Array JSON di ID documenti correlati
+
+  // Fonte
+  fonte         String?  // 'eur-lex', 'corte-cassazione', 'giustizia', 'manuale'
+  urlOriginale  String?  // URL del documento originale
+  idEsterno     String?  // ID nel sistema esterno (es: CELEX per EUR-Lex)
+
+  // File allegato
+  filePdf       String?  // URL del PDF se disponibile
+
+  // AI Analysis
+  aiSummary     String?  // Riassunto generato dall'AI
+  aiKeyPoints   String   @default("[]") // Punti chiave estratti dall'AI
+  aiRelevance   Float?   // Score di rilevanza (0-1)
+
+  // Metadata
+  metadata      String   @default("{}") // JSON con metadata aggiuntivi
+
+  // Salvato da utente
+  savedByUserId String?  // Se l'utente ha salvato questo documento
+
+  // Azienda (isolamento dati)
+  companyId     String
+
+  // Note personali utente
+  notePersonali String?
+
+  // Tags personalizzati
+  tagsPersonali String   @default("[]")
+
+  // Casi collegati
+  casiCollegati LegalCase[]  @relation("CaseDocuments")
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([companyId])
+  @@index([tipo])
+  @@index([materia])
+  @@index([anno])
+  @@index([fonte])
+  @@index([savedByUserId])
+  @@index([dataEmissione])
+  @@unique([idEsterno, fonte, companyId])
+}
+
+// Casi/Pratiche legali
+model LegalCase {
+  id          String   @id @default(uuid())
+
+  // Informazioni caso
+  numeroPratica String   @unique
+  titolo        String
+  descrizione   String?
+
+  // Cliente
+  clienteNome   String
+  clienteEmail  String?
+  clienteTelefono String?
+  contactId     String?  // Collegamento a Contact
+
+  // Controparte
+  controparte   String?
+
+  // Tipologia
+  materia       String   // es: "Civile", "Penale", "Amministrativo"
+  sottoMateria  String?  // es: "Contratti", "Responsabilità civile"
+
+  // Stato
+  stato         String   @default("aperto") // 'aperto', 'in_corso', 'chiuso', 'archiviato'
+  esito         String?  // 'favorevole', 'sfavorevole', 'transazione', 'altro'
+
+  // Date
+  dataApertura  DateTime @default(now())
+  dataChiusura  DateTime?
+  prossimUdienza DateTime?
+
+  // Foro competente
+  foro          String?  // es: "Tribunale di Milano"
+  giudice       String?  // Nome giudice
+
+  // Valore causa
+  valoreCausa   Float?
+
+  // Assegnazione
+  avvocatoId    String   // Avvocato responsabile del caso
+
+  // Team legale (array di user IDs)
+  teamLegale    String   @default("[]")
+
+  // Documenti collegati
+  documenti     LegalDocument[] @relation("CaseDocuments")
+
+  // Documenti caricati (contratti, memorie, ecc.)
+  documentiCaricati String @default("[]") // Array JSON di URLs
+
+  // Scadenze
+  scadenze      String   @default("[]") // Array JSON di scadenze
+
+  // Note e attività
+  note          String?
+  attivita      String   @default("[]") // Array JSON di attività/eventi
+
+  // AI Insights
+  aiSuggerimenti String  @default("[]") // Suggerimenti AI per il caso
+  precedentiRilevanti String @default("[]") // Precedenti giurisprudenziali suggeriti dall'AI
+
+  // Azienda (Studio Legale)
+  companyId     String
+
+  // Tags
+  tags          String   @default("[]")
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([companyId])
+  @@index([avvocatoId])
+  @@index([stato])
+  @@index([materia])
+  @@index([dataApertura])
+  @@index([prossimUdienza])
+}
+
+// Ricerche legali salvate
+model LegalSearch {
+  id          String   @id @default(uuid())
+
+  // Query di ricerca
+  query       String
+  filtri      String   @default("{}") // JSON con filtri applicati
+
+  // Risultati trovati (snapshot)
+  risultati   String   @default("[]") // Array JSON di document IDs
+  totaleRisultati Int  @default(0)
+
+  // Utente che ha salvato la ricerca
+  userId      String
+
+  // Nome ricerca (opzionale)
+  nome        String?
+
+  // Se la ricerca è salvata per riuso
+  salvata     Boolean  @default(false)
+
+  // Azienda
+  companyId   String
+
+  createdAt   DateTime @default(now())
+
+  @@index([userId])
+  @@index([companyId])
+  @@index([salvata])
+}
+
+// Chat legale con AI (per consulenza rapida)
+model LegalChat {
+  id          String   @id @default(uuid())
+
+  // Utente
+  userId      String
+
+  // Caso collegato (opzionale)
+  caseId      String?
+
+  // Conversazione (array di messaggi)
+  messaggi    String   @default("[]") // Array JSON: [{ role: 'user'|'assistant', content: '...', timestamp: '...' }]
+
+  // Documenti di riferimento citati nella chat
+  documentiRiferimento String @default("[]") // Array di document IDs
+
+  // Titolo chat
+  titolo      String   @default("Nuova consulenza")
+
+  // Azienda
+  companyId   String
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([userId])
+  @@index([companyId])
+  @@index([caseId])
+}
+
+// Template documenti legali (contratti, memorie, ecc.)
+model LegalTemplate {
+  id          String   @id @default(uuid())
+
+  // Informazioni template
+  nome        String
+  descrizione String?
+  categoria   String   // 'contratto', 'memoria', 'ricorso', 'lettera', 'altro'
+
+  // Contenuto template (HTML/Markdown con placeholders)
+  contenuto   String
+
+  // Placeholders disponibili
+  placeholders String  @default("[]") // Array JSON: ['[CLIENTE_NOME]', '[DATA]', ...]
+
+  // Visibilità
+  isPublic    Boolean  @default(false) // Se condiviso con tutto lo studio
+
+  // Creatore
+  createdById String
+
+  // Azienda
+  companyId   String
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([companyId])
+  @@index([categoria])
+  @@index([createdById])
 }

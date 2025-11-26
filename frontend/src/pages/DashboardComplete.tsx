@@ -26,6 +26,11 @@ import Drive from './Drive';
 import CRMPage from './CRMPage';
 import PreventiviPage from './PreventiviPage';
 import NewsletterPage from './NewsletterPage';
+import FatturePage from './FatturePage';
+import PagamentiPage from './PagamentiPage';
+import PresenzePage from './PresenzePage';
+import AssenzePage from './AssenzePage';
+import InventarioPage from './InventarioPage';
 import type { ViewType as NotesViewType, NotesCounts } from './NotesComplete';
 import {
   LayoutDashboard,
@@ -71,7 +76,10 @@ import {
   FolderOpen,
   Users,
   HardDrive,
-  Database
+  Database,
+  DollarSign,
+  Clock,
+  Package
 } from 'lucide-react';
 
 interface Subtask {
@@ -841,6 +849,11 @@ const DashboardComplete = () => {
     { id: 'projects', label: 'Progetti', icon: FolderOpen },
     { id: 'drive', label: 'Drive', icon: HardDrive },
     { id: 'crm', label: 'CRM', icon: Database },
+    { id: 'fatture', label: 'Fatture', icon: FileText },
+    { id: 'pagamenti', label: 'Pagamenti', icon: DollarSign },
+    { id: 'inventario', label: 'Inventario', icon: Package },
+    { id: 'presenze', label: 'Presenze', icon: Clock },
+    { id: 'assenze', label: 'Assenze', icon: Calendar },
     { id: 'preventivi', label: 'Preventivi', icon: FileText },
     { id: 'newsletter', label: 'Newsletter', icon: Mail },
     { id: 'chat', label: 'Chat', icon: MessageSquare },
@@ -1832,6 +1845,41 @@ const DashboardComplete = () => {
               {activeView === 'crm' && (
                 <div className="-m-8">
                   <CRMPage />
+                </div>
+              )}
+
+              {/* Fatture View */}
+              {activeView === 'fatture' && (
+                <div className="-m-8">
+                  <FatturePage />
+                </div>
+              )}
+
+              {/* Pagamenti View */}
+              {activeView === 'pagamenti' && (
+                <div className="-m-8">
+                  <PagamentiPage />
+                </div>
+              )}
+
+              {/* Inventario View */}
+              {activeView === 'inventario' && (
+                <div className="-m-8">
+                  <InventarioPage />
+                </div>
+              )}
+
+              {/* Presenze View */}
+              {activeView === 'presenze' && (
+                <div className="-m-8">
+                  <PresenzePage />
+                </div>
+              )}
+
+              {/* Assenze View */}
+              {activeView === 'assenze' && (
+                <div className="-m-8">
+                  <AssenzePage />
                 </div>
               )}
 

@@ -1,0 +1,28 @@
+# .htaccess per il backend Node.js (da mettere nella cartella backend/public o backend/dist)
+# NOTA: Node.js funziona meglio come servizio separato, NON attraverso Apache
+# Questa configurazione è per reverse proxy Apache -> Node.js
+
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+
+  # Proxy tutte le richieste a Node.js che gira sulla porta 4000
+  RewriteCond %{REQUEST_FILENAME} !-f
+  RewriteCond %{REQUEST_FILENAME} !-d
+  RewriteRule ^(.*)$ http://localhost:4000/$1 [P,L]
+</IfModule>
+
+# Headers CORS
+<IfModule mod_headers.c>
+  Header set Access-Control-Allow-Origin "https://www.licenzeoriginali.com"
+  Header set Access-Control-Allow-Methods "GET, POST, PUT, DELETE, OPTIONS"
+  Header set Access-Control-Allow-Headers "Content-Type, Authorization"
+  Header set Access-Control-Allow-Credentials "true"
+</IfModule>
+
+# NOTA IMPORTANTE:
+# Il backend Node.js deve girare come servizio separato sulla porta 4000
+# Non può essere eseguito direttamente tramite Apache/XAMPP
+# Opzioni:
+# 1. Usare PM2 per far girare Node.js come servizio Windows
+# 2. Configurare Apache come reverse proxy (come sopra)
+# 3. Usare forever o node-windows per eseguire Node.js

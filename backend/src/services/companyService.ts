@@ -13,10 +13,11 @@ class CompanyService {
     email: string;
     hashedPassword: string;
     plan: string;
+    categoria?: string;
     roleId: string;
   }) {
     const companyCode = generateCompanyCode();
-    
+
     // Crea azienda e utente admin in una transazione
     const result = await prisma.$transaction(async (tx) => {
       // Crea l'azienda
@@ -25,6 +26,7 @@ class CompanyService {
           nome: data.companyName,
           code: companyCode,
           plan: data.plan,
+          categoria: data.categoria || 'generale',
         }
       });
 

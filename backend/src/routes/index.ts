@@ -57,9 +57,21 @@ import debugRoutes from "./debug.routes";
 import preventivoRoutes from "./preventivo.routes";
 // Newsletter (Email newsletter system with AI)
 import newsletterRoutes from "./newsletter.routes";
+// Fatturazione (Invoicing & Payments)
+import fatturaRoutes from "./fattura.routes";
+import pagamentoRoutes from "./pagamento.routes";
+// Timbrature e Presenze (Attendance & Time Clock)
+import timbraturaRoutes from "./timbratura.routes";
+import assenzaRoutes from "./assenza.routes";
+// Inventario (Inventory Management)
+import inventarioRoutes from "./inventario.routes";
 // Ticket Categories & Role Change Requests
 import ticketCategoryController from "../controllers/ticketCategoryController";
 import roleChangeRequestController from "../controllers/roleChangeRequestController";
+// SuperAdmin
+import superadminRoutes from "./superadmin.routes";
+// Legal (Studi Legali)
+import legalRoutes from "./legal.routes";
 import { authenticate, isAdmin } from "../middleware/auth";
 
 const router = express.Router();
@@ -306,6 +318,23 @@ router.use("/preventivi", preventivoRoutes);
 
 // Newsletter (Email newsletter system with AI)
 router.use("/newsletters", newsletterRoutes);
+
+// Fatturazione (Invoicing & Payments)
+router.use("/fatture", fatturaRoutes);
+router.use("/pagamenti", pagamentoRoutes);
+
+// Timbrature e Presenze (Attendance & Time Clock)
+router.use("/timbrature", timbraturaRoutes);
+router.use("/assenze", assenzaRoutes);
+
+// Inventario (Inventory Management)
+router.use("/inventario", inventarioRoutes);
+
+// SuperAdmin (gestione aziende e moduli)
+router.use("/superadmin", authenticate, superadminRoutes);
+
+// Legal (Studi Legali - ricerca giurisprudenza e gestione casi)
+router.use("/legal", authenticate, legalRoutes);
 
 console.log('🔧 Router caricato con', router.stack.length, 'route'); // v2
 

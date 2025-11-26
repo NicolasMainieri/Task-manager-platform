@@ -26,13 +26,18 @@ import Drive from "./Drive";
 import CRMPage from "./CRMPage";
 import TaskHistoryAdmin from "../components/TaskHistoryAdmin";
 import RealProgressCharts from "../components/RealProgressCharts";
+import FatturePage from "./FatturePage";
+import PagamentiPage from "./PagamentiPage";
+import PresenzePage from "./PresenzePage";
+import AssenzePage from "./AssenzePage";
+import LegalPage from "./LegalPage";
 import {
   Copy, Check, LogOut, Users, CheckCircle, XCircle, LayoutDashboard, ListTodo,
   TrendingUp, Trophy, Brain, Menu, X, Target, Plus, Edit, Trash2, UserPlus,
   Calendar, Clock, Award, Mail, Phone, MapPin, Briefcase, Star, ArrowUp, ArrowDown,
   Bell, MessageSquare, Inbox, Ticket, Send, Video, Settings as SettingsIcon, Loader2,
   AlertCircle, TrendingDown, Zap, BarChart3, Activity, HelpCircle, Gift, FolderOpen, BookUser, HardDrive,
-  Database
+  Database, FileText, DollarSign, ClockIcon, Scale
 } from "lucide-react";
 
 // Types
@@ -674,14 +679,18 @@ const AdminPanelComplete: React.FC = () => {
     { id: 'projects', icon: FolderOpen, label: 'Progetti' },
     { id: 'drive', icon: HardDrive, label: 'Drive' },
     { id: 'crm', icon: Database, label: 'CRM' },
+    { id: 'fatture', icon: FileText, label: 'Fatture' },
+    { id: 'pagamenti', icon: DollarSign, label: 'Pagamenti' },
+    { id: 'presenze', icon: ClockIcon, label: 'Presenze' },
+    { id: 'assenze', icon: Calendar, label: 'Assenze' },
     { id: 'requests', icon: MessageSquare, label: 'Richieste Dipendenti' },
     { id: 'chat', icon: Send, label: 'Chat' },
     { id: 'contacts', icon: BookUser, label: 'Contatti' },
     { id: 'tickets', icon: Ticket, label: 'Ticket' },
+    { id: 'legal', icon: Scale, label: 'Studi Legali' },
     { id: 'rewards', icon: Gift, label: 'Premi' },
     { id: 'videocall', icon: Video, label: 'Videochiamate' },
     { id: 'teams', icon: UserPlus, label: 'Team' },
-    { id: 'calendar', icon: Calendar, label: 'Calendario' },
     { id: 'email', icon: Mail, label: 'Email' },
     { id: 'progress', icon: TrendingUp, label: 'Progressi' },
     { id: 'leaderboard', icon: Trophy, label: 'Classifica' },
@@ -1610,8 +1619,39 @@ const AdminPanelComplete: React.FC = () => {
                 </div>
               )}
 
+              {/* Fatture View */}
+              {activeView === 'fatture' && (
+                <div className="-mx-8 -my-8">
+                  <FatturePage />
+                </div>
+              )}
+
+              {/* Pagamenti View */}
+              {activeView === 'pagamenti' && (
+                <div className="-mx-8 -my-8">
+                  <PagamentiPage />
+                </div>
+              )}
+
+              {/* Presenze View */}
+              {activeView === 'presenze' && (
+                <div className="-mx-8 -my-8">
+                  <PresenzePage />
+                </div>
+              )}
+
+              {/* Assenze View */}
+              {activeView === 'assenze' && (
+                <div className="-mx-8 -my-8">
+                  <AssenzePage />
+                </div>
+              )}
+
               {/* Tickets View */}
               {activeView === 'tickets' && <TicketManagement />}
+
+              {/* Legal View */}
+              {activeView === 'legal' && <LegalPage />}
 
               {/* Chat View (includes Company Chat and Direct Messages) */}
               {activeView === 'chat' && (

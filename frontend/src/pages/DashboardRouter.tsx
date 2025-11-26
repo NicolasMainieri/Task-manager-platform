@@ -10,9 +10,15 @@ const DashboardRouter = () => {
     return <Navigate to="/login" />;
   }
 
-  // ✅ Controlla se l'utente è admin in vari modi
+  // ✅ Controlla se l'utente è SuperAdmin
   const userAny = user as any;
 
+  if (userAny?.isSuperAdmin === true) {
+    console.log('🔐 SuperAdmin detected, redirecting to /superadmin');
+    return <Navigate to="/superadmin" replace />;
+  }
+
+  // ✅ Controlla se l'utente è admin in vari modi
   // Controlla il ruolo
   const hasAdminRole = userAny?.role?.nome === "Admin";
 
@@ -26,6 +32,7 @@ const DashboardRouter = () => {
 
   console.log('🔍 DashboardRouter Debug:', {
     email: userAny?.email,
+    isSuperAdmin: userAny?.isSuperAdmin,
     roleName: userAny?.role?.nome,
     rolePermissions: userAny?.role?.permessi,
     hasAdminRole,

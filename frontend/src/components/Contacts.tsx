@@ -30,7 +30,9 @@ import {
   Image,
   Video,
   Music,
-  Archive
+  Archive,
+  DollarSign,
+  Receipt
 } from 'lucide-react';
 
 const API_URL = import.meta.env.VITE_API_URL;
@@ -93,6 +95,8 @@ const Contacts: React.FC = () => {
     id: ''
   });
   const [contactDocuments, setContactDocuments] = useState<Document[]>([]);
+  const [contactFatture, setContactFatture] = useState<any[]>([]);
+  const [contactPagamenti, setContactPagamenti] = useState<any[]>([]);
   const [uploadingFile, setUploadingFile] = useState(false);
   const [formData, setFormData] = useState({
     nome: '',
@@ -130,7 +134,7 @@ const Contacts: React.FC = () => {
       const response = await axios.get(`${API_URL}/api/contacts`, {
         headers: { Authorization: `Bearer ${token}` }
       });
-      setContacts(response.data);
+      setContacts(Array.isArray(response.data) ? response.data : []);
       setLoading(false);
     } catch (error) {
       console.error('Error fetching contacts:', error);
@@ -151,6 +155,10 @@ const Contacts: React.FC = () => {
   };
 
   const filterContacts = () => {
+    if (!Array.isArray(contacts)) {
+      setFilteredContacts([]);
+      return;
+    }
     let filtered = [...contacts];
 
     // Filtro per ricerca
@@ -379,6 +387,34 @@ const Contacts: React.FC = () => {
     }
   };
 
+  const fetchContactFatture = async (contactId: string) => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await axios.get(`${API_URL}/api/fatture`, {
+        headers: { Authorization: `Bearer ${token}` },
+        params: { contactId }
+      });
+      setContactFatture(response.data || []);
+    } catch (error) {
+      console.error('Error fetching contact fatture:', error);
+    }
+  };
+
+  const fetchContactPagamenti = async (contactId: string) => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await axios.get(`${API_URL}/api/pagamenti`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      // Filter pagamenti for invoices related to this contact
+      const fattureDiContatto = contactFatture.map(f => f.id);
+      const pagamentiFiltrati = response.data.filter((p: any) => fattureDiContatto.includes(p.fatturaId));
+      setContactPagamenti(pagamentiFiltrati);
+    } catch (error) {
+      console.error('Error fetching contact pagamenti:', error);
+    }
+  };
+
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!selectedContact || !e.target.files || e.target.files.length === 0) return;
 
@@ -580,6 +616,7 @@ const Contacts: React.FC = () => {
                           setSelectedContact(contact);
                           setShowDetailsModal(true);
                           fetchContactDocuments(contact.id);
+                          fetchContactFatture(contact.id);
                         }}
                         className="p-1 text-gray-400 hover:text-blue-600"
                         title="Visualizza Dettagli"
@@ -1285,6 +1322,75 @@ const Contacts: React.FC = () => {
                   </div>
                 )}
               </div>
+
+              {/* Fatture Associate */}
+              <div>
+                <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
+                  <Receipt className="w-5 h-5 text-green-600" />
+                  Fatture
+                </h3>
+                {contactFatture.length === 0 ? (
+                  <p className="text-gray-500 text-sm">Nessuna fattura associata a questo contatto.</p>
+                ) : (
+                  <div className="space-y-2">
+                    {contactFatture.map((fattura: any) => (
+                      <div
+                        key={fattura.id}
+                        className="p-3 bg-white border border-gray-200 rounded-lg hover:shadow-md transition-shadow"
+                      >
+                        <div className="flex justify-between items-start">
+                          <div>
+                            <p className="font-medium text-gray-900">Fattura {fattura.numero}</p>
+                            <p className="text-sm text-gray-600">
+                              Importo: €{fattura.totale?.toFixed(2)} • Stato: {fattura.statoPagamento}
+                            </p>
+                            <p className="text-xs text-gray-500">
+                              {new Date(fattura.dataEmissione).toLocaleDateString('it-IT')}
+                            </p>
+                          </div>
+                          <span className={`text-xs px-2 py-1 rounded-full ${
+                            fattura.statoPagamento === 'pagata' ? 'bg-green-100 text-green-800' :
+                            fattura.statoPagamento === 'non_pagata' ? 'bg-red-100 text-red-800' :
+                            'bg-yellow-100 text-yellow-800'
+                          }`}>
+                            {fattura.statoPagamento === 'pagata' ? 'Pagata' :
+                             fattura.statoPagamento === 'non_pagata' ? 'Non Pagata' :
+                             'Parziale'}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Pagamenti Associati */}
+              {contactPagamenti.length > 0 && (
+                <div>
+                  <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
+                    <DollarSign className="w-5 h-5 text-blue-600" />
+                    Pagamenti
+                  </h3>
+                  <div className="space-y-2">
+                    {contactPagamenti.map((pagamento: any) => (
+                      <div
+                        key={pagamento.id}
+                        className="p-3 bg-white border border-gray-200 rounded-lg"
+                      >
+                        <div className="flex justify-between">
+                          <div>
+                            <p className="font-medium text-gray-900">€{pagamento.importo?.toFixed(2)}</p>
+                            <p className="text-sm text-gray-600">{pagamento.metodoPagamento}</p>
+                            <p className="text-xs text-gray-500">
+                              {new Date(pagamento.dataPagamento).toLocaleDateString('it-IT')}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </div>

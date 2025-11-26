@@ -73,3 +73,23 @@ pnpm-lock.yaml
 # Build artifacts
 *.tgz
 *.tar.gz
+
+# XAMPP Deployment
+xampp-deploy/
+
+# Uploads (development)
+backend/uploads/*
+!backend/uploads/.gitkeep
+
+# Database backups
+*.sql
+*.dump
+*.backup
+*.bak
+
+# PM2
+.pm2/
+
+# Environment config templates (with real data)
+backend/.env.xampp
+frontend/src/config/api.xampp.ts

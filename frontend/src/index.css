@@ -165,4 +165,26 @@
   :root:not(.dark) .border-gray-300 {
     border-color: #e5e7eb !important;
   }
+
+  /* Input e select - testo sempre nero in modalità chiara */
+  :root:not(.dark) input,
+  :root:not(.dark) select,
+  :root:not(.dark) textarea {
+    color: #111827 !important; /* Grigio quasi nero */
+  }
+
+  :root:not(.dark) input::placeholder,
+  :root:not(.dark) textarea::placeholder {
+    color: #9ca3af !important; /* Grigio per placeholder */
+  }
+
+  /* Label e option - testo sempre scuro in modalità chiara */
+  :root:not(.dark) label {
+    color: #374151 !important; /* Grigio scuro per label */
+  }
+
+  :root:not(.dark) option {
+    color: #111827 !important; /* Nero per le opzioni dei select */
+    background-color: white !important;
+  }
 }

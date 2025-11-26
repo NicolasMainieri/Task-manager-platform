@@ -9,6 +9,7 @@ export interface AuthRequest extends Request {
   query: any;
   headers: any;
   user?: any;
+  userId?: string;
 }
 
 export const authenticate = async (req: AuthRequest, res: Response, next: NextFunction) => {
@@ -34,7 +35,10 @@ export const authenticate = async (req: AuthRequest, res: Response, next: NextFu
         permessi: parseJsonField(user.role.permessi)
       }
     };
-    
+
+    // Aggiungi userId per compatibilità con i nuovi middleware
+    req.userId = user.id;
+
     next();
   } catch (error) {
     res.status(401).json({ error: "Token non valido" });

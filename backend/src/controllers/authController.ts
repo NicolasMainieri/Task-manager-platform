@@ -11,7 +11,7 @@ class AuthController {
   // 🆕 Registrazione Azienda
   async registerCompany(req: Request, res: Response) {
     try {
-      const { email, password, name, companyName, plan } = req.body;
+      const { email, password, name, companyName, plan, categoria } = req.body;
 
       const existingUser = await prisma.user.findUnique({ where: { email } });
       if (existingUser) {
@@ -37,6 +37,7 @@ class AuthController {
         email,
         hashedPassword,
         plan,
+        categoria: categoria || 'generale',
         roleId: adminRole.id
       });
 
